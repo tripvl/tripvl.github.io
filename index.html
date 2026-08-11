@@ -9,10 +9,10 @@
     <title>Персеиды — где смотреть</title>
     <meta
       name="description"
-      content="Показывает, куда повернуться, чтобы найти радиант метеорного потока Персеиды. Работает в браузере, без установки."
+      content="AR-карта созвездий показывает небесный купол и ведёт стрелкой к радианту Персеид. Работает офлайн."
     />
 
-    <meta name="theme-color" content="#09002d" />
+    <meta name="theme-color" content="#07070a" />
     <meta name="color-scheme" content="dark" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
@@ -46,10 +46,7 @@
       </symbol>
     </svg>
 
-    <!--
-      AR-слой: кадр с задней камеры и метка радианта поверх него.
-      Лежит под основным содержимым и включается только по кнопке.
-    -->
+    <!-- Небесный купол: Canvas работает всегда, камера — только как выбираемый фон. -->
     <div class="ar" id="ar-layer" hidden>
       <video
         class="ar__video"
@@ -60,6 +57,12 @@
         disablepictureinpicture
         aria-hidden="true"
       ></video>
+      <canvas
+        class="ar__sky"
+        id="sky-canvas"
+        role="img"
+        aria-label="Карта видимых созвездий. Поворачивайте телефон, чтобы осматривать небо."
+      ></canvas>
       <div class="ar__scrim" aria-hidden="true"></div>
       <div class="ar__reticle" aria-hidden="true"></div>
       <div class="ar__marker" id="ar-marker" hidden>
@@ -94,19 +97,15 @@
     <main id="main">
       <!-- 1. Старт -->
       <section class="screen screen--center screen--start" id="screen-start">
-        <svg class="hero-mark" viewBox="0 0 100 100" aria-hidden="true">
-          <use href="#trip-mark"></use>
-        </svg>
         <h1 class="hero-title" id="start-title">Персеиды</h1>
         <p class="hero-sub">
-          Покажем, в какую сторону повернуться, чтобы найти радиант потока.
+          Наведи телефон на небо: покажем созвездия и приведём стрелкой к радианту.
         </p>
         <button type="button" class="primary-button" id="start-button">
           Найти Персеиды
         </button>
         <p class="hint" id="start-hint">
-          Понадобится местоположение и датчики телефона. Если их нет — покажем,
-          как найти радиант по обычному компасу.
+          Понадобятся местоположение и датчики телефона. Камера необязательна. Если датчиков нет — останется инструкция по обычному компасу.
         </p>
         <details class="explainer">
           <summary>Что такое радиант?</summary>
@@ -122,6 +121,8 @@
             target="_blank"
             rel="noopener noreferrer"
           >@trip_vl</a>
+          <span aria-hidden="true"> · </span>
+          <a href="THIRD_PARTY_NOTICES.txt">данные карты</a>
         </p>
       </section>
 
@@ -147,7 +148,7 @@
         </button>
       </section>
 
-      <!-- 4. Наведение -->
+      <!-- 4. AR-карта небесного купола -->
       <section class="screen screen--aim" id="screen-aiming" hidden>
         <p class="banner" id="compass-banner" hidden>
           Компас может быть неточным. Отойди от автомобиля, металлических
@@ -157,65 +158,32 @@
           </button>
         </p>
 
-        <div class="aim-arrow" id="aim-arrow">
+        <div class="aim-arrow" id="aim-arrow" aria-hidden="true">
           <svg viewBox="0 0 100 100" aria-hidden="true">
-            <circle
-              class="aim-arrow__orbit"
-              cx="50"
-              cy="50"
-              r="39"
-              fill="none"
-            />
             <path
               class="aim-arrow__needle"
               d="M50 3 L72 67 L50 54 L28 67 Z"
               fill="currentColor"
             />
-            <circle class="aim-arrow__dot" cx="50" cy="88" r="4" />
           </svg>
         </div>
 
-        <p class="aim-primary" id="aim-primary">Повернись</p>
-        <p class="aim-secondary" id="aim-secondary"></p>
-
-        <div class="aim-meta">
-          <span id="aim-distance"></span>
-          <span class="aim-meta__dim" id="aim-numbers"></span>
+        <div class="sky-status" role="status" aria-live="polite">
+          <p class="aim-primary" id="aim-primary">Веди телефон по стрелке</p>
+          <p class="aim-secondary" id="aim-secondary"></p>
         </div>
 
-        <button type="button" class="ghost-button ar-toggle" id="ar-toggle">
-          Включить камеру
-        </button>
-        <p class="hint ar-notice" id="ar-notice" hidden></p>
-      </section>
+        <aside class="target-card" id="target-card" hidden>
+          <strong id="target-card-title">Радиант Персеид найден</strong>
+          <span>Для наблюдения смотри на 40–60° в сторону и убери телефон.</span>
+        </aside>
 
-      <!-- 5. Радиант найден -->
-      <section class="screen screen--found" id="screen-found" hidden>
-        <p class="found-mark" aria-hidden="true">✦</p>
-        <h2 class="found-title" id="found-title">Радиант Персеид здесь</h2>
-
-        <p class="found-note">
-          Метеоры могут появляться по всему небу. Для наблюдения убери телефон
-          и смотри примерно на 40–60° в сторону от этой точки — там следы
-          метеоров обычно выглядят длиннее.
-        </p>
-
-        <ul class="tips">
-          <li>Не смотри всё время прямо на радиант.</li>
-          <li>Персеиды могут появляться в любой части неба.</li>
-          <li>Лучше охватывать взглядом большую область неба.</li>
-          <li>
-            Убери телефон на 20–30 минут — глаза привыкнут к темноте и увидят
-            больше слабых метеоров.
-          </li>
-        </ul>
-
-        <div class="found-actions">
-          <button type="button" class="ghost-button" id="found-again">
-            Навести снова
+        <div class="sky-controls">
+          <button type="button" class="ghost-button ar-toggle" id="ar-toggle">
+            Включить камеру
           </button>
+          <p class="hint ar-notice" id="ar-notice" hidden></p>
         </div>
-        <p class="aim-meta__dim" id="found-numbers"></p>
       </section>
 
       <!-- 6 и 7. Ручная инструкция: есть координаты, нет компаса -->

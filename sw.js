@@ -8,17 +8,17 @@
  * При изменении файлов поднимите CACHE_VERSION — старый кеш будет удалён.
  */
 
-const CACHE_VERSION = 'perseids-v3';
+const CACHE_VERSION = 'perseids-v5';
 
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './THIRD_PARTY_NOTICES.txt',
   './css/styles.css',
-  './assets/fonts/roboto-condensed-800-italic-cyrillic.woff2',
-  './assets/fonts/roboto-condensed-800-italic-latin.woff2',
   './js/app.js',
   './js/config/showers.js',
+  './js/config/constellations.js',
   './js/config/cities.js',
   './js/config/wmm2025.js',
   './js/core/astro.js',
@@ -28,8 +28,10 @@ const SHELL = [
   './js/core/guidance.js',
   './js/core/camera.js',
   './js/core/projection.js',
+  './js/core/sky-map.js',
   './js/ui/state.js',
   './js/ui/render.js',
+  './js/ui/sky-canvas.js',
   './js/ui/debug.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

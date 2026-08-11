@@ -10,8 +10,7 @@
  *   1. Старт                        → START
  *   2. Запрос разрешений            → PERMISSIONS
  *   3. Определение местоположения   → LOCATING
- *   4. Полноценное наведение        → AIMING
- *   5. Радиант найден               → FOUND
+ *   4. AR-карта и наведение        → AIMING
  *   6. Только GPS, без компаса      → GPS_ONLY
  *   7. Только выбранный город       → MANUAL_CITY
  *   8. Нет разрешений               → NO_PERMISSION
@@ -28,7 +27,6 @@ export const STATES = {
   PERMISSIONS: 'permissions',
   LOCATING: 'locating',
   AIMING: 'aiming',
-  FOUND: 'found',
   GPS_ONLY: 'gps-only',
   MANUAL_CITY: 'manual-city',
   NO_PERMISSION: 'no-permission',
@@ -45,7 +43,6 @@ export const SCREEN_FOR_STATE = {
   [STATES.LOCATING]: 'screen-locating',
   [STATES.AIMING]: 'screen-aiming',
   [STATES.COMPASS_UNSTABLE]: 'screen-aiming',
-  [STATES.FOUND]: 'screen-found',
   [STATES.GPS_ONLY]: 'screen-manual',
   [STATES.MANUAL_CITY]: 'screen-manual',
   [STATES.NO_SENSORS]: 'screen-manual',
@@ -95,9 +92,6 @@ export function createStore() {
      */
     forcedManual: false,
 
-    /** Найден ли радиант. Защёлкивается, чтобы советы не исчезали от движения. */
-    foundLatched: false,
-
     target: null,
     guidance: null,
     shower: null,
@@ -144,7 +138,6 @@ export function createStore() {
       return manualScreen;
     }
 
-    if (ctx.foundLatched) return STATES.FOUND;
     if (!ctx.compassStable) return STATES.COMPASS_UNSTABLE;
     return STATES.AIMING;
   }

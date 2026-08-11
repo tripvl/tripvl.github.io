@@ -1,7 +1,7 @@
 {
   "name": "Персеиды — где смотреть",
   "short_name": "Персеиды",
-  "description": "Показывает, куда повернуться, чтобы найти радиант метеорного потока Персеиды.",
+  "description": "Интерактивная карта неба показывает созвездия и ведёт к радианту метеорного потока Персеиды.",
   "lang": "ru",
   "dir": "ltr",
   "start_url": "./",
@@ -10,8 +10,8 @@
   "display": "standalone",
   "display_override": ["standalone", "fullscreen"],
   "orientation": "portrait",
-  "background_color": "#09002d",
-  "theme_color": "#09002d",
+  "background_color": "#07070a",
+  "theme_color": "#07070a",
   "categories": ["education", "utilities"],
   "icons": [
     {

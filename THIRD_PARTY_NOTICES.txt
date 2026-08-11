@@ -1,0 +1,16 @@
+Third-party data
+================
+
+The offline constellation map includes derived data from:
+
+1. ConstellationLines, copyright © 2005–2023 Marc van der Sluys.
+   Licensed under CC BY 4.0:
+   https://creativecommons.org/licenses/by/4.0/
+   DOI: https://doi.org/10.5281/zenodo.10397192
+
+2. Bright Star Catalogue, 5th Revised Edition (V/50), accessed through
+   VizieR, CDS Strasbourg:
+   https://cdsarc.cds.unistra.fr/viz-bin/cat/V/50
+
+Only the J2000 positions and visual magnitudes of the 695 stars used by the
+constellation figures are included in the generated runtime module.

@@ -37,6 +37,7 @@ export function createRenderer() {
 
     arLayer: $('ar-layer'),
     arVideo: $('ar-video'),
+    skyCanvas: $('sky-canvas'),
     arMarker: $('ar-marker'),
     arMarkerLabel: $('ar-marker-label'),
     arToggle: $('ar-toggle'),
@@ -45,12 +46,9 @@ export function createRenderer() {
     aimArrow: $('aim-arrow'),
     aimPrimary: $('aim-primary'),
     aimSecondary: $('aim-secondary'),
-    aimDistance: $('aim-distance'),
-    aimNumbers: $('aim-numbers'),
     compassBanner: $('compass-banner'),
-
-    foundTitle: $('found-title'),
-    foundNumbers: $('found-numbers'),
+    targetCard: $('target-card'),
+    targetCardTitle: $('target-card-title'),
 
     manualTitle: $('manual-title'),
     manualPlace: $('manual-place'),
@@ -85,9 +83,6 @@ export function createRenderer() {
       lastScreen = screenId;
       for (const section of el.screens) {
         section.hidden = section.id !== screenId;
-        // В AR-режиме экран находки становится прокручиваемой панелью.
-        // Показывая её заново, возвращаем к началу: иначе человек видит
-        // середину фразы, оставшуюся от прошлого раза.
         if (!section.hidden) section.scrollTop = 0;
       }
       // При смене экрана уводим фокус в начало — иначе он остаётся
@@ -101,8 +96,8 @@ export function createRenderer() {
     applyShower(shower) {
       el.brand.textContent = shower.name;
       el.startTitle.textContent = shower.name;
-      el.startButton.textContent = `Найти ${shower.accusative}`;
-      el.foundTitle.textContent = `Радиант ${shower.nameGenitive} здесь`;
+      el.startButton.textContent = `Открыть карту ${shower.nameGenitive}`;
+      el.targetCardTitle.textContent = `Радиант ${shower.nameGenitive} найден`;
       el.arMarkerLabel.textContent = shower.name;
       document.title = `${shower.name} — где смотреть`;
       const step = el.manualSteps.querySelector('li:nth-child(4)');
@@ -119,72 +114,66 @@ export function createRenderer() {
       el.permissionsText.textContent = text;
     },
 
-    /**
-     * Экран наведения.
-     * @param {object} guidance результат computeGuidance
-     * @param {number|null} screenAngle угол поворота стрелки в системе экрана
-     * @param {object} target азимут и высота радианта
-     * @param {boolean} stable надёжны ли данные компаса
-     */
-    renderAiming(guidance, screenAngle, target, stable) {
-      const angle = screenAngle === null ? 0 : screenAngle;
-      el.aimArrow.style.transform = `rotate(${angle}deg)`;
-      el.aimArrow.classList.toggle('aim-arrow--found', guidance.found);
+    /** Стрелка, метка радианта и компактная карточка успеха поверх Canvas. */
+    renderSkyGuidance({ navigation, scene, target, aligned, stable }) {
+      const markerVisible = Boolean(target.alt >= 0 && scene?.target?.onScreen);
+      el.arMarker.hidden = !markerVisible;
+      if (markerVisible) {
+        el.arMarker.style.transform =
+          `translate(${scene.target.x.toFixed(1)}px, ${scene.target.y.toFixed(1)}px)`;
+      }
+      el.arMarker.classList.toggle('ar__marker--found', aligned);
 
-      el.aimPrimary.textContent = guidance.primary;
-      el.aimSecondary.textContent = guidance.secondary;
+      el.aimArrow.hidden = navigation.hidden;
+      el.aimArrow.classList.toggle('aim-arrow--below', navigation.mode.startsWith('below'));
+      if (!navigation.hidden) {
+        el.aimArrow.style.transform =
+          `translate(${navigation.x.toFixed(1)}px, ${navigation.y.toFixed(1)}px) ` +
+          `rotate(${navigation.angle.toFixed(1)}deg)`;
+      }
 
-      el.aimDistance.textContent = `до цели ${Math.round(guidance.separation)}°`;
-      el.aimNumbers.textContent =
-        `радиант: азимут ${Math.round(target.az)}° · высота ${Math.round(target.alt)}°`;
+      el.targetCard.hidden = !aligned;
+      const status = el.aimPrimary.closest('.sky-status');
+      status.hidden = aligned;
+      if (target.alt < 0) {
+        el.aimPrimary.textContent = 'Радиант под горизонтом';
+        el.aimSecondary.textContent = 'Он поднимется позже';
+      } else if (navigation.mode === 'inside') {
+        el.aimPrimary.textContent = 'Веди телефон по стрелке';
+        el.aimSecondary.textContent = 'Радиант уже виден на карте';
+      } else {
+        el.aimPrimary.textContent = 'Поворачивай телефон';
+        el.aimSecondary.textContent = 'Стрелка приведёт к радианту';
+      }
 
       el.compassBanner.hidden = stable;
+      el.skyCanvas.setAttribute(
+        'aria-label',
+        `Карта неба: в кадре ${scene?.visibleConstellations || 0} созвездий.`,
+      );
     },
 
-    /**
-     * Метка радианта поверх кадра камеры.
-     *
-     * Пока цель в кадре — показываем кольцо прямо на ней и убираем стрелку:
-     * человек и так видит, куда смотреть. Как только цель уходит за край,
-     * возвращаем стрелку — она подсказывает, в какую сторону вести телефон.
-     *
-     * @param {object|null} projection результат projectTarget
-     * @param {boolean} found
-     */
-    renderArOverlay(projection, found) {
-      const visible = Boolean(projection?.onScreen);
-
-      el.arMarker.hidden = !visible;
-      el.aimArrow.hidden = visible;
-
-      if (!visible) return;
-
-      el.arMarker.style.transform =
-        `translate(${projection.x.toFixed(1)}px, ${projection.y.toFixed(1)}px)`;
-      el.arMarker.classList.toggle('ar__marker--found', found);
-    },
-
-    /** Включение и выключение слоя камеры. */
-    setArActive(active) {
+    setSkyActive(active) {
       el.arLayer.hidden = !active;
-      document.body.classList.toggle('ar-active', active);
-      el.arToggle.textContent = active ? 'Выключить камеру' : 'Включить камеру';
-      el.arToggle.setAttribute('aria-pressed', String(active));
+      document.body.classList.toggle('sky-active', active);
       if (!active) {
         el.arMarker.hidden = true;
-        el.aimArrow.hidden = false;
+        el.aimArrow.hidden = true;
+        el.targetCard.hidden = true;
       }
+    },
+
+    /** Камера меняет только фон карты. */
+    setCameraActive(active) {
+      document.body.classList.toggle('camera-active', active);
+      el.arToggle.textContent = active ? 'Тёмное небо' : 'Включить камеру';
+      el.arToggle.setAttribute('aria-pressed', String(active));
     },
 
     /** Короткое пояснение под кнопкой, если камера не включилась. */
     setArNotice(text) {
       el.arNotice.textContent = text || '';
       el.arNotice.hidden = !text;
-    },
-
-    renderFound(target) {
-      el.foundNumbers.textContent =
-        `азимут ${Math.round(target.az)}° · высота ${Math.round(target.alt)}°`;
     },
 
     /**
@@ -282,7 +271,7 @@ export function createRenderer() {
       el.nightToggle.setAttribute('aria-pressed', String(night));
       el.nightToggle.textContent = night ? 'Обычный режим' : 'Ночной режим';
       const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.setAttribute('content', night ? '#060102' : '#09002d');
+      if (meta) meta.setAttribute('content', night ? '#060102' : '#07070a');
       try {
         localStorage.setItem(THEME_KEY, night ? 'night' : 'dark');
       } catch {

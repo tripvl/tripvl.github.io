@@ -241,6 +241,8 @@ export function createDebug() {
               ? `${f(info.markerX, 0)}, ${f(info.markerY, 0)}`
               : 'вне кадра'
         }`,
+        `созвездий в кадре ${f(info.visibleConstellations, 0)}`,
+        `Canvas FPS     ${f(info.fps, 0)}`,
         ``,
         `разрешение gps ${info.geoPermission}`,
         `разрешение датчиков ${info.orientationPermission}`,

@@ -7,15 +7,16 @@
  *   core/geo.js         — где наблюдатель
  *   core/orientation.js — куда направлен телефон
  *   core/guidance.js    — что сказать пользователю
+ *   core/sky-map.js     — геометрия небесного купола и указателя
  *   ui/state.js         — в каком мы состоянии
  *   ui/render.js        — как это выглядит
+ *   ui/sky-canvas.js    — отрисовка карты в Canvas 2D
  */
 
 import { getShower, DEFAULT_SHOWER } from './config/showers.js';
 import {
   radiantAt,
   equatorialToHorizontal,
-  azAltToVector,
   isShowerActive,
 } from './core/astro.js';
 import { MODEL_INFO } from './core/magnetic.js';
@@ -28,7 +29,6 @@ import {
 } from './core/geo.js';
 import {
   createOrientationTracker,
-  screenAngleTo,
   matrixFromHeadingPitch,
   HEADING_SOURCE,
 } from './core/orientation.js';
@@ -36,12 +36,14 @@ import { computeGuidance } from './core/guidance.js';
 import { createCamera } from './core/camera.js';
 import {
   computeFocalLength,
-  projectTarget,
+  computeMapFocalLength,
   visibleFieldOfView,
   DEFAULT_CAMERA_FOV,
 } from './core/projection.js';
+import { buildSkyDome, projectSkyDome, targetNavigation } from './core/sky-map.js';
 import { createStore, STATES, COMPASS } from './ui/state.js';
 import { createRenderer } from './ui/render.js';
+import { drawSkyScene } from './ui/sky-canvas.js';
 import { createDebug } from './ui/debug.js';
 
 const debug = createDebug();
@@ -55,6 +57,15 @@ let cityQuery = '';
 /** Поле зрения камеры: в debug его можно подкрутить под конкретный телефон. */
 let cameraFov = Number(debug.params.get('fov')) || DEFAULT_CAMERA_FOV;
 let lastProjection = null;
+let lastView = null;
+let lastScene = null;
+let skyDome = null;
+let skyDomeSecond = null;
+let skyDomePositionKey = null;
+let targetAligned = false;
+let fps = 0;
+let framesSinceSample = 0;
+let fpsSampleAt = performance.now();
 
 /* ------------------------------------------------------------------ */
 /* Данные                                                              */
@@ -130,7 +141,7 @@ function computeTarget() {
 /* ------------------------------------------------------------------ */
 
 /**
- * Кадровый цикл — только для экрана наведения: стрелка должна идти плавно.
+ * Кадровый цикл — только для экрана наведения: весь купол и стрелка должны идти плавно.
  * Всё остальное обновляется по таймеру, см. startLoops().
  */
 function tick() {
@@ -138,11 +149,7 @@ function tick() {
   if (document.hidden) return;
 
   const state = store.state;
-  if (
-    state !== STATES.AIMING &&
-    state !== STATES.COMPASS_UNSTABLE &&
-    state !== STATES.FOUND
-  ) {
+  if (state !== STATES.AIMING && state !== STATES.COMPASS_UNSTABLE) {
     return;
   }
   update();
@@ -172,13 +179,10 @@ function update() {
     const guidance = computeGuidance(
       target,
       { heading: sensors.heading, pitch: sensors.pitch },
-      ctx.foundLatched,
+      targetAligned,
     );
+    targetAligned = target.alt >= 0 && guidance.found;
     ctx.guidance = guidance;
-
-    if (guidance.found && !ctx.foundLatched) {
-      store.update({ foundLatched: true });
-    }
     if (ctx.compassStable !== sensors.stable) {
       store.update({ compassStable: sensors.stable });
     }
@@ -187,8 +191,8 @@ function update() {
   render();
 }
 
-/** Экраны, на которых камера имеет смысл. */
-const AR_STATES = [STATES.AIMING, STATES.COMPASS_UNSTABLE, STATES.FOUND];
+/** Экраны, на которых живёт карта неба. */
+const SKY_STATES = [STATES.AIMING, STATES.COMPASS_UNSTABLE];
 
 function render() {
   const ctx = store.context;
@@ -196,32 +200,22 @@ function render() {
   const target = ctx.target;
   const sensors = effectiveOrientation();
 
-  // Ушли с экрана наведения — например, потеряли компас — камеру гасим.
-  // Держать её включённой под экраном с текстовой инструкцией незачем.
-  if (camera.active && !AR_STATES.includes(state)) {
+  const skyActive = SKY_STATES.includes(state);
+  if (camera.active && !skyActive) {
     camera.stop();
-    ui.setArActive(false);
+    ui.setCameraActive(false);
   }
 
   ui.showState(state);
+  ui.setSkyActive(skyActive);
 
   switch (state) {
     case STATES.AIMING:
     case STATES.COMPASS_UNSTABLE: {
       if (!target || !ctx.guidance) break;
-      const angle = screenAngleTo(
-        sensors.matrix,
-        azAltToVector(target.az, target.alt),
-        window.screen?.orientation?.angle || 0,
-      );
-      ui.renderAiming(ctx.guidance, angle, target, sensors.stable);
-      renderAr(sensors, target, ctx.guidance.found);
+      renderSky(sensors, target);
       break;
     }
-    case STATES.FOUND:
-      if (target) ui.renderFound(target);
-      renderAr(sensors, target, true);
-      break;
     case STATES.GPS_ONLY:
     case STATES.MANUAL_CITY:
     case STATES.NO_SENSORS:
@@ -241,67 +235,99 @@ function render() {
 }
 
 /**
- * Метка радианта поверх кадра камеры.
- *
- * Считаем проекцию каждый кадр: размеры вьюпорта меняются при повороте
- * телефона и при появлении адресной строки, а фокусное расстояние
- * зависит от них напрямую.
+ * Весь небесный купол: астрономия тикает раз в секунду, проекция и Canvas — каждый кадр.
  */
-function renderAr(sensors, target, found) {
-  if (!camera.active || !target || !sensors.matrix) {
+function renderSky(sensors, target) {
+  const position = effectivePosition();
+  if (!position || !target || !sensors.matrix) {
     lastProjection = null;
+    lastScene = null;
     return;
+  }
+
+  const date = now();
+  const second = Math.floor(date.getTime() / 1000);
+  const positionKey = `${position.lat.toFixed(5)}:${position.lon.toFixed(5)}`;
+  if (!skyDome || skyDomeSecond !== second || skyDomePositionKey !== positionKey) {
+    skyDome = buildSkyDome({ date, position });
+    skyDomeSecond = second;
+    skyDomePositionKey = positionKey;
   }
 
   const geometry = camera.geometry();
-  if (!geometry) {
-    lastProjection = null;
-    return;
-  }
-
-  const view = {
+  lastView = {
     width: window.innerWidth,
     height: window.innerHeight,
     screenAngle: window.screen?.orientation?.angle || 0,
-    focal: computeFocalLength({
-      ...geometry,
-      viewWidth: window.innerWidth,
-      viewHeight: window.innerHeight,
-      fovDeg: cameraFov,
-    }),
+    focal:
+      camera.active && geometry
+        ? computeFocalLength({
+            ...geometry,
+            viewWidth: window.innerWidth,
+            viewHeight: window.innerHeight,
+            fovDeg: cameraFov,
+          })
+        : computeMapFocalLength({
+            viewWidth: window.innerWidth,
+            viewHeight: window.innerHeight,
+            fovDeg: cameraFov,
+          }),
   };
 
-  lastProjection = projectTarget(
-    sensors.matrix,
-    azAltToVector(target.az, target.alt),
-    view,
-  );
-  lastProjection = lastProjection && { ...lastProjection, view };
+  lastScene = projectSkyDome({
+    dome: skyDome,
+    matrix: sensors.matrix,
+    view: lastView,
+    highlightId: shower.constellation,
+    target,
+  });
+  if (!lastScene) return;
+  lastProjection = lastScene.target;
 
-  ui.renderArOverlay(lastProjection, found);
+  drawSkyScene(ui.el.skyCanvas, lastScene, {
+    cameraActive: camera.active,
+    night: ui.isNight(),
+  });
+  const navigation = targetNavigation({
+    scene: lastScene,
+    target,
+    aligned: targetAligned,
+  });
+  ui.renderSkyGuidance({
+    navigation,
+    scene: lastScene,
+    target,
+    aligned: targetAligned,
+    stable: sensors.stable,
+  });
+
+  framesSinceSample += 1;
+  const sampledAt = performance.now();
+  if (sampledAt - fpsSampleAt >= 1000) {
+    fps = (framesSinceSample * 1000) / (sampledAt - fpsSampleAt);
+    framesSinceSample = 0;
+    fpsSampleAt = sampledAt;
+  }
 }
 
 async function toggleAr() {
   if (camera.active) {
     camera.stop();
-    ui.setArActive(false);
+    ui.setCameraActive(false);
     ui.setArNotice('');
-    lastProjection = null;
+    update();
     return;
   }
 
   ui.setArNotice('');
-  // Слой показываем заранее: элемент video должен быть в раскладке,
-  // иначе Safari не отдаёт размеры кадра.
-  ui.setArActive(true);
 
   const result = await camera.start(ui.el.arVideo);
   if (!result.ok) {
-    // Отказ в камере — не повод ломать сценарий: возвращаемся к стрелке.
-    ui.setArActive(false);
+    ui.setCameraActive(false);
     ui.setArNotice(camera.failureText());
     return;
   }
+  ui.setCameraActive(true);
   update();
 }
 
@@ -341,12 +367,12 @@ function renderDebug(target, sensors) {
     cameraFrame: camera.geometry()
       ? `${camera.geometry().videoWidth}×${camera.geometry().videoHeight}`
       : null,
-    visibleFov: lastProjection?.view
-      ? visibleFieldOfView(lastProjection.view)
-      : null,
+    visibleFov: lastView ? visibleFieldOfView(lastView) : null,
     markerX: lastProjection?.x ?? null,
     markerY: lastProjection?.y ?? null,
     markerOnScreen: lastProjection ? lastProjection.onScreen : null,
+    visibleConstellations: lastScene?.visibleConstellations ?? null,
+    fps,
     geoPermission: ctx.geoPermission,
     orientationPermission: sensors.permission,
     compass: ctx.compass,
@@ -485,6 +511,7 @@ function bindEvents() {
 
   ui.el.nightToggle.addEventListener('click', () => {
     ui.setTheme(!ui.isNight());
+    update();
   });
 
   document.getElementById('permissions-skip').addEventListener('click', openCityPicker);
@@ -495,11 +522,6 @@ function bindEvents() {
   document.getElementById('retry-location').addEventListener('click', () => {
     store.update({ geoFailure: null, triedLocation: false });
     locate();
-  });
-
-  document.getElementById('found-again').addEventListener('click', () => {
-    store.update({ foundLatched: false });
-    update();
   });
 
   document.getElementById('banner-manual').addEventListener('click', () => {
@@ -556,7 +578,7 @@ function bindEvents() {
       // гореть индикатор записи, а батарея садится впустую.
       if (camera.active) {
         camera.stop();
-        ui.setArActive(false);
+        ui.setCameraActive(false);
       }
       return;
     }
@@ -603,7 +625,8 @@ function init() {
   // Нет камеры или страница открыта не по HTTPS — кнопку не показываем
   // вовсе, чтобы не обещать того, чего не будет.
   ui.el.arToggle.hidden = !camera.isSupported();
-  ui.setArActive(false);
+  ui.setSkyActive(false);
+  ui.setCameraActive(false);
 
   store.subscribe((state, ctx, changed) => {
     if (changed) render();

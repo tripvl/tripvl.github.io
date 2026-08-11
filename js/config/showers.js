@@ -13,6 +13,7 @@
  *   ra, dec       — экваториальные координаты радианта В ГРАДУСАХ,
  *                   эпоха J2000.0, на дату максимума
  *   drift         — суточный дрейф радианта, градусов в сутки
+ *   constellation — трёхбуквенное обозначение созвездия на карте
  *   peak          — дата максимума (month 1..12), опора для дрейфа
  *   active        — окно активности, строки 'MM-DD'
  *
@@ -26,6 +27,7 @@ export const SHOWERS = {
     name: 'Персеиды',
     nameGenitive: 'Персеид',
     accusative: 'Персеиды',
+    constellation: 'Per',
     ra: 48.2, // 03h 12.8m
     dec: 58.1, // +58° 06'
     drift: { ra: 1.35, dec: 0.18 },
@@ -40,6 +42,7 @@ export const SHOWERS = {
     name: 'Геминиды',
     nameGenitive: 'Геминид',
     accusative: 'Геминиды',
+    constellation: 'Gem',
     ra: 112.0, // 07h 28m
     dec: 32.5,
     drift: { ra: 1.02, dec: -0.16 },
@@ -52,6 +55,7 @@ export const SHOWERS = {
     name: 'Квадрантиды',
     nameGenitive: 'Квадрантид',
     accusative: 'Квадрантиды',
+    constellation: 'Boo',
     ra: 230.0, // 15h 20m
     dec: 49.5,
     drift: { ra: 0.8, dec: -0.2 },
@@ -64,6 +68,7 @@ export const SHOWERS = {
     name: 'Лириды',
     nameGenitive: 'Лирид',
     accusative: 'Лириды',
+    constellation: 'Lyr',
     ra: 271.0, // 18h 04m
     dec: 34.0,
     drift: { ra: 1.1, dec: 0.0 },
@@ -76,6 +81,7 @@ export const SHOWERS = {
     name: 'Ориониды',
     nameGenitive: 'Орионид',
     accusative: 'Ориониды',
+    constellation: 'Ori',
     ra: 95.0, // 06h 20m
     dec: 15.5,
     drift: { ra: 1.1, dec: 0.1 },
