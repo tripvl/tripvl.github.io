@@ -8,7 +8,7 @@
  * При изменении файлов поднимите CACHE_VERSION — старый кеш будет удалён.
  */
 
-const CACHE_VERSION = 'perseids-v5';
+const CACHE_VERSION = 'perseids-v6';
 
 const SHELL = [
   './',

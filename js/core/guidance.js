@@ -12,7 +12,7 @@
 import { angularSeparation, signedDelta, compassPoint } from './astro.js';
 
 export const ZONES = {
-  /** Больше этого — «повернись», грубое наведение. */
+  /** Больше этого — «повернитесь», грубое наведение. */
   FAR: 30,
   /** От FOUND до FAR — «ещё немного». */
   NEAR: 10,
@@ -86,7 +86,7 @@ function horizontalHint(deltaAz) {
     return { zone: 'near', text: `Ещё немного ${side}`, side, degrees: abs };
   return {
     zone: 'far',
-    text: `Повернись ${side} на ${Math.round(abs)}°`,
+    text: `Повернитесь ${side} на ${Math.round(abs)}°`,
     side,
     degrees: abs,
   };
@@ -105,7 +105,7 @@ function verticalHint(deltaAlt) {
     };
   return {
     zone: 'far',
-    text: up ? 'Подними телефон выше' : 'Опусти телефон ниже',
+    text: up ? 'Поднимите телефон выше' : 'Опустите телефон ниже',
     up,
     degrees: abs,
   };
@@ -113,10 +113,10 @@ function verticalHint(deltaAlt) {
 
 /**
  * Текст для ручного режима: азимут словами плюс градусы.
- * «Повернись на азимут 47° — северо-восток».
+ * «Повернитесь на азимут 47° — северо-восток».
  */
 export function manualDirectionText(az) {
-  return `Повернись на азимут ${Math.round(az)}° — ${compassPoint(az)}`;
+  return `Повернитесь на азимут ${Math.round(az)}° — ${compassPoint(az)}`;
 }
 
 /** Описание высоты понятными словами, без астрономического жаргона. */

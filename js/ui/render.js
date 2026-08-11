@@ -139,10 +139,10 @@ export function createRenderer() {
         el.aimPrimary.textContent = 'Радиант под горизонтом';
         el.aimSecondary.textContent = 'Он поднимется позже';
       } else if (navigation.mode === 'inside') {
-        el.aimPrimary.textContent = 'Веди телефон по стрелке';
+        el.aimPrimary.textContent = 'Ведите телефон по стрелке';
         el.aimSecondary.textContent = 'Радиант уже виден на карте';
       } else {
-        el.aimPrimary.textContent = 'Поворачивай телефон';
+        el.aimPrimary.textContent = 'Поворачивайте телефон';
         el.aimSecondary.textContent = 'Стрелка приведёт к радианту';
       }
 
@@ -203,7 +203,7 @@ export function createRenderer() {
       // отмерить «40–60° в сторону», поэтому называем готовое направление.
       const spot = observingSpot(target);
       el.manualObserving.textContent =
-        `Для наблюдения смотри примерно на азимут ${Math.round(spot.az)}° ` +
+        `Для наблюдения смотрите примерно на азимут ${Math.round(spot.az)}° ` +
         `и высоту ${Math.round(spot.alt)}° — это и есть те самые 40–60° ` +
         `в сторону от радианта.`;
 
@@ -212,7 +212,7 @@ export function createRenderer() {
       const belowHorizon = target.alt < 0;
       el.manualTitle.textContent = belowHorizon
         ? 'Радиант пока под горизонтом'
-        : 'Открой приложение «Компас»';
+        : 'Откройте приложение «Компас»';
     },
 
     renderNoLocation(failure) {
