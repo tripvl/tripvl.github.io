@@ -8,7 +8,7 @@
  * При изменении файлов поднимите CACHE_VERSION — старый кеш будет удалён.
  */
 
-const CACHE_VERSION = 'perseids-v1';
+const CACHE_VERSION = 'perseids-v2';
 
 const SHELL = [
   './',
@@ -24,6 +24,8 @@ const SHELL = [
   './js/core/geo.js',
   './js/core/orientation.js',
   './js/core/guidance.js',
+  './js/core/camera.js',
+  './js/core/projection.js',
   './js/ui/state.js',
   './js/ui/render.js',
   './js/ui/debug.js',

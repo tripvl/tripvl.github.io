@@ -226,6 +226,22 @@ export function createDebug() {
         `Δ азимут       ${f(info.deltaAz)}°`,
         `Δ высота       ${f(info.deltaAlt)}°`,
         ``,
+        `камера         ${info.camera}`,
+        `кадр           ${info.cameraFrame || '—'}`,
+        `угол камеры    ${f(info.cameraFov, 0)}° (?fov=)`,
+        `видно на экране ${
+          info.visibleFov
+            ? `${f(info.visibleFov.horizontal, 0)}°×${f(info.visibleFov.vertical, 0)}°`
+            : '—'
+        }`,
+        `метка          ${
+          info.markerOnScreen === null
+            ? '—'
+            : info.markerOnScreen
+              ? `${f(info.markerX, 0)}, ${f(info.markerY, 0)}`
+              : 'вне кадра'
+        }`,
+        ``,
         `разрешение gps ${info.geoPermission}`,
         `разрешение датчиков ${info.orientationPermission}`,
         `компас         ${info.compass}`,

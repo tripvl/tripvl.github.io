@@ -559,6 +559,244 @@ main {
   margin: 4px 0 8px;
 }
 
+/* ---------- AR: камера и метка радианта ---------- */
+
+.ar {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.ar[hidden] {
+  display: none;
+}
+
+.ar__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  /*
+   * Гасим картинку: ночью в кадре и так почти чернота, а вот случайный
+   * фонарь или окно не должны бить в глаза и рушить адаптацию к темноте.
+   * Сильнее приглушать нельзя — пропадут силуэты домов и деревьев,
+   * а по ним и считывается направление.
+   */
+  filter: brightness(0.72) saturate(0.75);
+}
+
+/*
+ * В ночном режиме кадр становится тёмно-красным монохромом. Это
+ * единственный способ оставить камеру включённой и не сжечь адаптацию
+ * глаз к темноте: к красному свету глаз в темноте наименее чувствителен.
+ */
+:root[data-theme='night'] .ar__video {
+  filter: brightness(0.5) grayscale(1) sepia(1) hue-rotate(-35deg) saturate(3.2);
+}
+
+/* Затемнение сверху и снизу, чтобы текст поверх кадра оставался читаемым. */
+.ar__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(4, 4, 8, 0.75) 0%,
+    rgba(4, 4, 8, 0.15) 28%,
+    rgba(4, 4, 8, 0.35) 62%,
+    rgba(4, 4, 8, 0.88) 100%
+  );
+}
+
+/* Перекрестие в центре кадра — точка, в которую смотрит камера. */
+.ar__reticle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border: 1px solid var(--text-dim);
+  border-radius: 50%;
+  opacity: 0.45;
+}
+
+.ar__marker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 128px;
+  height: 128px;
+  margin: -64px 0 0 -64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-text);
+  /* Метка идёт за датчиком: короткое сглаживание убирает дрожь. */
+  transition: transform 0.1s linear;
+  will-change: transform;
+}
+
+.ar__marker[hidden] {
+  display: none;
+}
+
+.ar__ring {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  animation: ar-pulse 2.4s ease-in-out infinite;
+}
+
+.ar__label {
+  position: absolute;
+  top: calc(100% - 18px);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-bright);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+}
+
+.ar__marker--found {
+  color: var(--ok);
+}
+
+.ar__marker--found .ar__ring {
+  stroke-width: 3.5;
+  animation: none;
+}
+
+@keyframes ar-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.ar-toggle {
+  margin-top: 20px;
+}
+
+.ar-notice {
+  margin-top: 10px;
+  max-width: 32ch;
+}
+
+.ar-notice[hidden] {
+  display: none;
+}
+
+/*
+ * Когда камера включена, экран наведения превращается в накладку поверх
+ * кадра: фон убираем, стрелку уменьшаем, текст прижимаем вниз.
+ */
+body.ar-active {
+  background: transparent;
+}
+
+body.ar-active main {
+  position: relative;
+  z-index: 1;
+}
+
+body.ar-active .topbar {
+  position: relative;
+  z-index: 2;
+}
+
+body.ar-active .screen--aim {
+  justify-content: flex-end;
+  padding-bottom: 12px;
+  min-height: calc(100svh - 120px);
+}
+
+body.ar-active .aim-arrow {
+  /* Стрелка нужна, только пока цель за пределами кадра. */
+  width: min(34vw, 150px);
+  height: min(34vw, 150px);
+  opacity: 0.9;
+}
+
+body.ar-active .aim-arrow[hidden] {
+  display: none;
+}
+
+body.ar-active .aim-primary {
+  font-size: clamp(22px, 6.5vw, 30px);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+}
+
+body.ar-active .aim-secondary,
+body.ar-active .aim-meta {
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+}
+
+body.ar-active .aim-meta {
+  margin-top: 12px;
+}
+
+/*
+ * Экран «радиант найден» в AR превращается в нижнюю панель.
+ * Разворачивать его на весь экран нельзя: он закроет собой метку,
+ * а ради неё камеру и включали. Советы никуда не делись — панель
+ * прокручивается.
+ */
+body.ar-active .screen--found {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  max-height: 40svh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  min-height: auto;
+  gap: 10px;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+  margin: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(6, 6, 10, 0.86) 0%,
+    rgba(6, 6, 10, 0.97) 26%
+  );
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+body.ar-active .found-mark {
+  display: none;
+}
+
+body.ar-active .found-title {
+  font-size: clamp(20px, 6vw, 26px);
+  text-align: left;
+}
+
+body.ar-active .found-note {
+  font-size: 15px;
+  padding: 12px;
+}
+
+body.ar-active .tips {
+  font-size: 14px;
+  gap: 6px;
+}
+
+body.ar-active .found-actions {
+  justify-content: flex-start;
+}
+
 /* ---------- debug ---------- */
 
 .debug {

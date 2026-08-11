@@ -28,6 +28,34 @@
   <body>
     <a class="skip-link" href="#main">К основному содержанию</a>
 
+    <!--
+      AR-слой: кадр с задней камеры и метка радианта поверх него.
+      Лежит под основным содержимым и включается только по кнопке.
+    -->
+    <div class="ar" id="ar-layer" hidden>
+      <video
+        class="ar__video"
+        id="ar-video"
+        playsinline
+        muted
+        autoplay
+        disablepictureinpicture
+        aria-hidden="true"
+      ></video>
+      <div class="ar__scrim" aria-hidden="true"></div>
+      <div class="ar__reticle" aria-hidden="true"></div>
+      <div class="ar__marker" id="ar-marker" hidden>
+        <svg class="ar__ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="34" />
+          <line x1="50" y1="2" x2="50" y2="22" />
+          <line x1="50" y1="78" x2="50" y2="98" />
+          <line x1="2" y1="50" x2="22" y2="50" />
+          <line x1="78" y1="50" x2="98" y2="50" />
+        </svg>
+        <span class="ar__label" id="ar-marker-label">Персеиды</span>
+      </div>
+    </div>
+
     <header class="topbar">
       <span class="brand" id="brand">Персеиды</span>
       <button
@@ -111,6 +139,11 @@
           <span id="aim-distance"></span>
           <span class="aim-meta__dim" id="aim-numbers"></span>
         </div>
+
+        <button type="button" class="ghost-button ar-toggle" id="ar-toggle">
+          Включить камеру
+        </button>
+        <p class="hint ar-notice" id="ar-notice" hidden></p>
       </section>
 
       <!-- 5. Радиант найден -->

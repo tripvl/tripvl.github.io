@@ -33,6 +33,13 @@ import {
   HEADING_SOURCE,
 } from './core/orientation.js';
 import { computeGuidance } from './core/guidance.js';
+import { createCamera } from './core/camera.js';
+import {
+  computeFocalLength,
+  projectTarget,
+  visibleFieldOfView,
+  DEFAULT_CAMERA_FOV,
+} from './core/projection.js';
 import { createStore, STATES, COMPASS } from './ui/state.js';
 import { createRenderer } from './ui/render.js';
 import { createDebug } from './ui/debug.js';
@@ -42,8 +49,12 @@ const shower = getShower(debug.params.get('shower') || DEFAULT_SHOWER);
 const store = createStore();
 const ui = createRenderer();
 const orientation = createOrientationTracker();
+const camera = createCamera();
 
 let cityQuery = '';
+/** Поле зрения камеры: в debug его можно подкрутить под конкретный телефон. */
+let cameraFov = Number(debug.params.get('fov')) || DEFAULT_CAMERA_FOV;
+let lastProjection = null;
 
 /* ------------------------------------------------------------------ */
 /* Данные                                                              */
@@ -176,11 +187,21 @@ function update() {
   render();
 }
 
+/** Экраны, на которых камера имеет смысл. */
+const AR_STATES = [STATES.AIMING, STATES.COMPASS_UNSTABLE, STATES.FOUND];
+
 function render() {
   const ctx = store.context;
   const state = store.state;
   const target = ctx.target;
   const sensors = effectiveOrientation();
+
+  // Ушли с экрана наведения — например, потеряли компас — камеру гасим.
+  // Держать её включённой под экраном с текстовой инструкцией незачем.
+  if (camera.active && !AR_STATES.includes(state)) {
+    camera.stop();
+    ui.setArActive(false);
+  }
 
   ui.showState(state);
 
@@ -194,10 +215,12 @@ function render() {
         window.screen?.orientation?.angle || 0,
       );
       ui.renderAiming(ctx.guidance, angle, target, sensors.stable);
+      renderAr(sensors, target, ctx.guidance.found);
       break;
     }
     case STATES.FOUND:
       if (target) ui.renderFound(target);
+      renderAr(sensors, target, true);
       break;
     case STATES.GPS_ONLY:
     case STATES.MANUAL_CITY:
@@ -215,6 +238,71 @@ function render() {
   }
 
   renderDebug(target, sensors);
+}
+
+/**
+ * Метка радианта поверх кадра камеры.
+ *
+ * Считаем проекцию каждый кадр: размеры вьюпорта меняются при повороте
+ * телефона и при появлении адресной строки, а фокусное расстояние
+ * зависит от них напрямую.
+ */
+function renderAr(sensors, target, found) {
+  if (!camera.active || !target || !sensors.matrix) {
+    lastProjection = null;
+    return;
+  }
+
+  const geometry = camera.geometry();
+  if (!geometry) {
+    lastProjection = null;
+    return;
+  }
+
+  const view = {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    screenAngle: window.screen?.orientation?.angle || 0,
+    focal: computeFocalLength({
+      ...geometry,
+      viewWidth: window.innerWidth,
+      viewHeight: window.innerHeight,
+      fovDeg: cameraFov,
+    }),
+  };
+
+  lastProjection = projectTarget(
+    sensors.matrix,
+    azAltToVector(target.az, target.alt),
+    view,
+  );
+  lastProjection = lastProjection && { ...lastProjection, view };
+
+  ui.renderArOverlay(lastProjection, found);
+}
+
+async function toggleAr() {
+  if (camera.active) {
+    camera.stop();
+    ui.setArActive(false);
+    ui.setArNotice('');
+    lastProjection = null;
+    return;
+  }
+
+  ui.setArNotice('');
+  // Слой показываем заранее: элемент video должен быть в раскладке,
+  // иначе Safari не отдаёт размеры кадра.
+  ui.setArActive(true);
+
+  const result = await camera.start(ui.el.arVideo);
+  if (!result.ok) {
+    // Отказ в камере — не повод ломать сценарий: возвращаемся к стрелке.
+    ui.setArActive(false);
+    ui.setArNotice(camera.failureText());
+    return;
+  }
+  update();
 }
 
 function renderDebug(target, sensors) {
@@ -248,6 +336,17 @@ function renderDebug(target, sensors) {
     separation: ctx.guidance?.separation ?? null,
     deltaAz: ctx.guidance?.deltaAz ?? null,
     deltaAlt: ctx.guidance?.deltaAlt ?? null,
+    camera: camera.status,
+    cameraFov,
+    cameraFrame: camera.geometry()
+      ? `${camera.geometry().videoWidth}×${camera.geometry().videoHeight}`
+      : null,
+    visibleFov: lastProjection?.view
+      ? visibleFieldOfView(lastProjection.view)
+      : null,
+    markerX: lastProjection?.x ?? null,
+    markerY: lastProjection?.y ?? null,
+    markerOnScreen: lastProjection ? lastProjection.onScreen : null,
     geoPermission: ctx.geoPermission,
     orientationPermission: sensors.permission,
     compass: ctx.compass,
@@ -446,12 +545,27 @@ function bindEvents() {
     update();
   });
 
+  ui.el.arToggle.addEventListener('click', toggleAr);
+
   // Смена ориентации экрана меняет систему координат стрелки.
   window.screen?.orientation?.addEventListener?.('change', () => update());
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) update();
+    if (document.hidden) {
+      // Вкладка ушла в фон: гасим камеру. Иначе на телефоне продолжает
+      // гореть индикатор записи, а батарея садится впустую.
+      if (camera.active) {
+        camera.stop();
+        ui.setArActive(false);
+      }
+      return;
+    }
+    update();
   });
+
+  // Уходя со страницы, освобождаем камеру явно — не полагаемся на то,
+  // что браузер сделает это сам.
+  window.addEventListener('pagehide', () => camera.stop());
 }
 
 /* ------------------------------------------------------------------ */
@@ -486,6 +600,11 @@ function init() {
   bindEvents();
   showActivityHint();
 
+  // Нет камеры или страница открыта не по HTTPS — кнопку не показываем
+  // вовсе, чтобы не обещать того, чего не будет.
+  ui.el.arToggle.hidden = !camera.isSupported();
+  ui.setArActive(false);
+
   store.subscribe((state, ctx, changed) => {
     if (changed) render();
   });
@@ -514,5 +633,20 @@ init();
 
 // Пригодится в консоли при отладке на устройстве.
 if (debug.enabled) {
-  window.perseids = { store, orientation, debug, shower, update, HEADING_SOURCE };
+  window.perseids = {
+    store,
+    orientation,
+    camera,
+    debug,
+    shower,
+    update,
+    toggleAr,
+    HEADING_SOURCE,
+    /** Подбор поля зрения под конкретный телефон: perseids.setFov(70) */
+    setFov(deg) {
+      cameraFov = deg;
+      update();
+      return cameraFov;
+    },
+  };
 }

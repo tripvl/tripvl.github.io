@@ -35,6 +35,13 @@ export function createRenderer() {
 
     permissionsText: $('permissions-text'),
 
+    arLayer: $('ar-layer'),
+    arVideo: $('ar-video'),
+    arMarker: $('ar-marker'),
+    arMarkerLabel: $('ar-marker-label'),
+    arToggle: $('ar-toggle'),
+    arNotice: $('ar-notice'),
+
     aimArrow: $('aim-arrow'),
     aimPrimary: $('aim-primary'),
     aimSecondary: $('aim-secondary'),
@@ -78,6 +85,10 @@ export function createRenderer() {
       lastScreen = screenId;
       for (const section of el.screens) {
         section.hidden = section.id !== screenId;
+        // В AR-режиме экран находки становится прокручиваемой панелью.
+        // Показывая её заново, возвращаем к началу: иначе человек видит
+        // середину фразы, оставшуюся от прошлого раза.
+        if (!section.hidden) section.scrollTop = 0;
       }
       // При смене экрана уводим фокус в начало — иначе он остаётся
       // на кнопке скрытого раздела и скринридер теряется.
@@ -92,6 +103,7 @@ export function createRenderer() {
       el.startTitle.textContent = shower.name;
       el.startButton.textContent = `Найти ${shower.accusative}`;
       el.foundTitle.textContent = `Радиант ${shower.nameGenitive} здесь`;
+      el.arMarkerLabel.textContent = shower.name;
       document.title = `${shower.name} — где смотреть`;
       const step = el.manualSteps.querySelector('li:nth-child(4)');
       if (step) step.textContent = `Это район радианта ${shower.nameGenitive}.`;
@@ -127,6 +139,47 @@ export function createRenderer() {
         `радиант: азимут ${Math.round(target.az)}° · высота ${Math.round(target.alt)}°`;
 
       el.compassBanner.hidden = stable;
+    },
+
+    /**
+     * Метка радианта поверх кадра камеры.
+     *
+     * Пока цель в кадре — показываем кольцо прямо на ней и убираем стрелку:
+     * человек и так видит, куда смотреть. Как только цель уходит за край,
+     * возвращаем стрелку — она подсказывает, в какую сторону вести телефон.
+     *
+     * @param {object|null} projection результат projectTarget
+     * @param {boolean} found
+     */
+    renderArOverlay(projection, found) {
+      const visible = Boolean(projection?.onScreen);
+
+      el.arMarker.hidden = !visible;
+      el.aimArrow.hidden = visible;
+
+      if (!visible) return;
+
+      el.arMarker.style.transform =
+        `translate(${projection.x.toFixed(1)}px, ${projection.y.toFixed(1)}px)`;
+      el.arMarker.classList.toggle('ar__marker--found', found);
+    },
+
+    /** Включение и выключение слоя камеры. */
+    setArActive(active) {
+      el.arLayer.hidden = !active;
+      document.body.classList.toggle('ar-active', active);
+      el.arToggle.textContent = active ? 'Выключить камеру' : 'Включить камеру';
+      el.arToggle.setAttribute('aria-pressed', String(active));
+      if (!active) {
+        el.arMarker.hidden = true;
+        el.aimArrow.hidden = false;
+      }
+    },
+
+    /** Короткое пояснение под кнопкой, если камера не включилась. */
+    setArNotice(text) {
+      el.arNotice.textContent = text || '';
+      el.arNotice.hidden = !text;
     },
 
     renderFound(target) {
