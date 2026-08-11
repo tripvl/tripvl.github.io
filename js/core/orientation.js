@@ -11,9 +11,9 @@
  *    deviceorientationabsolute даёт alpha, привязанную к магнитному северу.
  *    На iOS alpha отсчитывается от произвольного начального положения и
  *    вдобавок медленно уплывает — использовать её как азимут нельзя.
- *    Поэтому мы не полагаемся на «heading = 360 − alpha», а строим полную
- *    матрицу поворота и отдельно вычисляем поправку рыскания yawOffset
- *    по webkitCompassHeading.
+ *    Поэтому мы не используем «heading = 360 − alpha» как направление
+ *    камеры, а строим полную матрицу. Величина −alpha нужна только для
+ *    непрерывной поправки мирового yaw по webkitCompassHeading.
  *
  * 2. Компас показывает магнитный север, а радиант мы считаем от истинного.
  *    Разница в наших широтах 10–15°, поэтому склонение обязательно
@@ -39,8 +39,11 @@ import { declinationDeg } from './magnetic.js';
 /** Сколько ждать первого события датчика, прежде чем признать, что его нет. */
 const SENSOR_TIMEOUT_MS = 3000;
 
-/** Коэффициент экспоненциального сглаживания направления (0..1, больше — резче). */
-const SMOOTHING = 0.18;
+/** Коэффициент сглаживания полной 3D-ориентации (0..1, больше — резче). */
+export const ORIENTATION_SMOOTHING = 0.22;
+
+/** Сглаживание медленно меняющейся iOS-поправки на магнитный север. */
+const YAW_SMOOTHING = 0.25;
 
 /** Окно оценки стабильности компаса. */
 const QUALITY_WINDOW_MS = 3000;
@@ -112,6 +115,113 @@ export function deviceTopDirection(R) {
 }
 
 /**
+ * Магнитная поправка для iOS. −alpha — курс верхнего торца в базовой
+ * системе W3C, поэтому этот расчёт не вырождается, когда телефон проходит
+ * через вертикальное положение и сам торец смотрит в зенит.
+ */
+export function compassYawOffset(alphaDeg, compassHeading) {
+  return signedDelta(normalizeDeg(-alphaDeg), normalizeDeg(compassHeading));
+}
+
+/** Курс верхней грани ВИДИМОГО экрана с учётом landscape-поворота. */
+export function screenTopHeading(R, screenOrientationDeg = 0) {
+  if (!R) return null;
+  const angle = screenOrientationDeg * DEG;
+  const top = applyMatrix(R, {
+    x: -Math.sin(angle),
+    y: Math.cos(angle),
+    z: 0,
+  });
+  if (Math.hypot(top.x, top.y) < 1e-6) return null;
+  return normalizeDeg(Math.atan2(top.x, top.y) * RAD);
+}
+
+const normalizeQuaternion = (q) => {
+  const length = Math.hypot(q.w, q.x, q.y, q.z) || 1;
+  return { w: q.w / length, x: q.x / length, y: q.y / length, z: q.z / length };
+};
+
+/** Матрица поворота → единичный quaternion. */
+export function matrixToQuaternion(R) {
+  const trace = R[0][0] + R[1][1] + R[2][2];
+  let q;
+  if (trace > 0) {
+    const s = Math.sqrt(trace + 1) * 2;
+    q = {
+      w: s / 4,
+      x: (R[2][1] - R[1][2]) / s,
+      y: (R[0][2] - R[2][0]) / s,
+      z: (R[1][0] - R[0][1]) / s,
+    };
+  } else if (R[0][0] > R[1][1] && R[0][0] > R[2][2]) {
+    const s = Math.sqrt(1 + R[0][0] - R[1][1] - R[2][2]) * 2;
+    q = {
+      w: (R[2][1] - R[1][2]) / s,
+      x: s / 4,
+      y: (R[0][1] + R[1][0]) / s,
+      z: (R[0][2] + R[2][0]) / s,
+    };
+  } else if (R[1][1] > R[2][2]) {
+    const s = Math.sqrt(1 + R[1][1] - R[0][0] - R[2][2]) * 2;
+    q = {
+      w: (R[0][2] - R[2][0]) / s,
+      x: (R[0][1] + R[1][0]) / s,
+      y: s / 4,
+      z: (R[1][2] + R[2][1]) / s,
+    };
+  } else {
+    const s = Math.sqrt(1 + R[2][2] - R[0][0] - R[1][1]) * 2;
+    q = {
+      w: (R[1][0] - R[0][1]) / s,
+      x: (R[0][2] + R[2][0]) / s,
+      y: (R[1][2] + R[2][1]) / s,
+      z: s / 4,
+    };
+  }
+  return normalizeQuaternion(q);
+}
+
+/** Единичный quaternion → матрица поворота. */
+export function quaternionToMatrix(value) {
+  const { w, x, y, z } = normalizeQuaternion(value);
+  return [
+    [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+    [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+    [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+  ];
+}
+
+/** Кратчайшая сферическая интерполяция без скачка q ↔ −q. */
+export function slerpQuaternion(from, to, amount) {
+  if (!from) return normalizeQuaternion(to);
+  const a = normalizeQuaternion(from);
+  let b = normalizeQuaternion(to);
+  let dot = a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
+  if (dot < 0) {
+    dot = -dot;
+    b = { w: -b.w, x: -b.x, y: -b.y, z: -b.z };
+  }
+  if (dot > 0.9995) {
+    return normalizeQuaternion({
+      w: a.w + (b.w - a.w) * amount,
+      x: a.x + (b.x - a.x) * amount,
+      y: a.y + (b.y - a.y) * amount,
+      z: a.z + (b.z - a.z) * amount,
+    });
+  }
+  const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
+  const sinAngle = Math.sin(angle);
+  const fromWeight = Math.sin((1 - amount) * angle) / sinAngle;
+  const toWeight = Math.sin(amount * angle) / sinAngle;
+  return normalizeQuaternion({
+    w: a.w * fromWeight + b.w * toWeight,
+    x: a.x * fromWeight + b.x * toWeight,
+    y: a.y * fromWeight + b.y * toWeight,
+    z: a.z * fromWeight + b.z * toWeight,
+  });
+}
+
+/**
  * Куда рисовать стрелку: угол в градусах по часовой стрелке от «вверх экрана».
  *
  * Считаем именно так, а не по разнице азимутов, потому что телефон может быть
@@ -140,21 +250,6 @@ export function screenAngleTo(R, worldVector, screenOrientationDeg = 0) {
  */
 export function matrixFromHeadingPitch(heading, pitch) {
   return rotationMatrix(normalizeDeg(-heading), pitch + 90, 0);
-}
-
-/**
- * Круговое сглаживание направления: усредняем сам вектор, а не угол,
- * иначе на переходе через 0/360 стрелку будет швырять через весь экран.
- */
-function smoothVector(prev, next, k) {
-  if (!prev) return { ...next };
-  const v = {
-    x: prev.x + (next.x - prev.x) * k,
-    y: prev.y + (next.y - prev.y) * k,
-    z: prev.z + (next.z - prev.z) * k,
-  };
-  const len = Math.hypot(v.x, v.y, v.z) || 1;
-  return { x: v.x / len, y: v.y / len, z: v.z / len };
 }
 
 /** Круговое стандартное отклонение набора азимутов. */
@@ -190,6 +285,7 @@ export function createOrientationTracker() {
     headingRaw: null,
     declination: 0,
     yawOffset: 0,
+    yawOffsetInitialized: false,
     stable: true,
     sigma: 0,
     rate: 0,
@@ -199,7 +295,7 @@ export function createOrientationTracker() {
 
   let position = null;
   let matrix = null;
-  let smoothed = null;
+  let smoothedQuaternion = null;
   let started = false;
   let watchdog = null;
   let samples = [];
@@ -270,58 +366,48 @@ export function createOrientationTracker() {
       state.compassAccuracy = event.webkitCompassAccuracy;
     }
 
-    matrix = rotationMatrix(alpha, beta, gamma);
+    const rawMatrix = rotationMatrix(alpha, beta, gamma);
 
-    // Поправка рыскания. На iOS alpha произвольна, поэтому азимут камеры,
-    // посчитанный из матрицы, отличается от истинного на постоянный сдвиг.
-    // Находим его по компасу, сравнивая с азимутом верхнего торца телефона.
+    // Поправка рыскания. Сравниваем мировой yaw (−alpha) с компасом,
+    // а не горизонтальную проекцию верхнего торца: у вертикального телефона
+    // она вырождается и после прохождения зенита меняется на 180°.
     if (hasCompass) {
-      const top = deviceTopDirection(matrix);
-      const horizontal = Math.hypot(top.x, top.y);
-      // Когда телефон стоит вертикально, верхний торец смотрит в зенит,
-      // его азимут вырождается — в этот момент поправку не обновляем,
-      // а продолжаем пользоваться последней надёжной.
-      if (horizontal > 0.25) {
-        const topAz = normalizeDeg(Math.atan2(top.x, top.y) * RAD);
-        const offset = signedDelta(topAz, compass);
-        state.yawOffset =
-          state.yawOffset === 0
-            ? offset
-            : state.yawOffset + signedDelta(state.yawOffset, offset) * 0.25;
-      }
+      const offset = compassYawOffset(alpha, compass);
+      state.yawOffset = state.yawOffsetInitialized
+        ? state.yawOffset + signedDelta(state.yawOffset, offset) * YAW_SMOOTHING
+        : offset;
+      state.yawOffsetInitialized = true;
     } else {
       state.yawOffset = 0;
+      state.yawOffsetInitialized = false;
     }
 
-    // Направление камеры в мировых координатах, затем поворот на yawOffset.
-    const cam = cameraDirection(matrix);
-    const raw = vectorToAzAlt(cam);
-    const azMagnetic = normalizeDeg(raw.az + state.yawOffset);
+    const magneticMatrix = rotateMatrixAboutZ(rawMatrix, state.yawOffset);
+    const magneticDirection = vectorToAzAlt(cameraDirection(magneticMatrix));
+    const azMagnetic = magneticDirection.az;
 
     state.headingRaw = azMagnetic;
     state.declination = position
       ? declinationDeg(position.lat, position.lon, new Date())
       : 0;
 
-    const azTrue = normalizeDeg(azMagnetic + state.declination);
-
-    // Сглаживаем в виде вектора: так нет рывка на переходе через север.
-    const target = {
-      x: Math.cos(raw.alt * DEG) * Math.sin(azTrue * DEG),
-      y: Math.cos(raw.alt * DEG) * Math.cos(azTrue * DEG),
-      z: Math.sin(raw.alt * DEG),
-    };
-    smoothed = smoothVector(smoothed, target, SMOOTHING);
-    const shown = vectorToAzAlt(smoothed);
+    // Одна сглаженная матрица обслуживает карту, стрелку и guidance.
+    // Quaternion не имеет разрыва на границах Euler-углов и 0/360°.
+    const trueMatrix = rotateMatrixAboutZ(magneticMatrix, state.declination);
+    smoothedQuaternion = slerpQuaternion(
+      smoothedQuaternion,
+      matrixToQuaternion(trueMatrix),
+      ORIENTATION_SMOOTHING,
+    );
+    matrix = quaternionToMatrix(smoothedQuaternion);
+    const shown = vectorToAzAlt(cameraDirection(matrix));
 
     state.heading = shown.az;
     state.pitch = shown.alt;
 
-    // Матрицу тоже разворачиваем на yawOffset и склонение, чтобы стрелка,
-    // которую считает screenAngleTo, смотрела на истинную цель.
-    matrix = rotateMatrixAboutZ(matrix, state.yawOffset + state.declination);
-
-    updateQuality(azMagnetic, beta, gamma);
+    // Оценка качества тоже не должна пользоваться азимутом камеры около
+    // зенита: там он физически не определён. Мировой yaw остаётся непрерывным.
+    updateQuality(normalizeDeg(-alpha + state.yawOffset), beta, gamma);
     emit();
   }
 
@@ -457,7 +543,7 @@ export function createOrientationTracker() {
 }
 
 /** Поворот матрицы вокруг вертикальной оси мира на угол в градусах. */
-function rotateMatrixAboutZ(R, deg) {
+export function rotateMatrixAboutZ(R, deg) {
   const a = deg * DEG;
   const c = Math.cos(a);
   const s = Math.sin(a);

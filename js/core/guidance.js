@@ -20,7 +20,46 @@ export const ZONES = {
   FOUND: 10,
   /** Выход из состояния «найдено» — с запасом, чтобы надпись не мигала. */
   FOUND_RELEASE: 14,
+  /** Камера явно смотрит вниз — вместо карты нужен плоский компас. */
+  DOWN_COMPASS_ENTER: -20,
+  /** Возвращаем карту с запасом, чтобы режимы не мигали. */
+  DOWN_COMPASS_EXIT: -10,
 };
+
+/** Вычисляемый режим нижнего компаса с гистерезисом −20°/−10°. */
+export function resolveDownCompass(pitch, wasActive = false) {
+  if (!Number.isFinite(pitch)) return wasActive;
+  return wasActive
+    ? pitch < ZONES.DOWN_COMPASS_EXIT
+    : pitch <= ZONES.DOWN_COMPASS_ENTER;
+}
+
+/**
+ * Кратчайшая подсказка плоского компаса. Здесь ловим только азимут:
+ * высоту человек доберёт, когда поднимет телефон и вернётся к карте.
+ */
+export function computeCompassGuidance(
+  screenHeading,
+  targetAz,
+  wasAligned = false,
+) {
+  if (!Number.isFinite(screenHeading) || !Number.isFinite(targetAz)) return null;
+  const delta = signedDelta(screenHeading, targetAz);
+  const distance = Math.abs(delta);
+  const aligned = wasAligned
+    ? distance <= ZONES.FOUND_RELEASE
+    : distance <= ZONES.FOUND;
+  const side = delta >= 0 ? 'вправо' : 'влево';
+  return {
+    delta,
+    distance,
+    aligned,
+    side,
+    primary: aligned
+      ? 'Направление найдено — подними телефон'
+      : `Поверни телефон ${side}`,
+  };
+}
 
 /**
  * @param {{az:number, alt:number}} target   куда нужно смотреть

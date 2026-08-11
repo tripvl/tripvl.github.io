@@ -165,9 +165,56 @@ export function clipWorldSegmentToHorizon(from, to) {
   return from.z >= 0 ? { from, to: crossing } : { from: crossing, to };
 }
 
+/** Отсекает экранный отрезок прямоугольником viewport (Liang–Barsky). */
+export function clipScreenSegment(from, to, { width, height }) {
+  if (
+    !from ||
+    !to ||
+    !Number.isFinite(from.x) ||
+    !Number.isFinite(from.y) ||
+    !Number.isFinite(to.x) ||
+    !Number.isFinite(to.y) ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height)
+  ) {
+    return null;
+  }
+
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  let enter = 0;
+  let leave = 1;
+  const boundaries = [
+    [-dx, from.x],
+    [dx, width - from.x],
+    [-dy, from.y],
+    [dy, height - from.y],
+  ];
+
+  for (const [direction, distance] of boundaries) {
+    if (Math.abs(direction) < 1e-12) {
+      if (distance < 0) return null;
+      continue;
+    }
+    const ratio = distance / direction;
+    if (direction < 0) {
+      if (ratio > leave) return null;
+      enter = Math.max(enter, ratio);
+    } else {
+      if (ratio < enter) return null;
+      leave = Math.min(leave, ratio);
+    }
+  }
+
+  return {
+    from: { x: from.x + dx * enter, y: from.y + dy * enter },
+    to: { x: from.x + dx * leave, y: from.y + dy * leave },
+  };
+}
+
 /**
- * Проекция отрезка небесной фигуры. Отрезает и горизонт,
- * и плоскость за спиной камеры, чтобы Canvas не получал бесконечные координаты.
+ * Проекция отрезка небесной фигуры. Отрезает горизонт, ближнюю плоскость
+ * и границы viewport, чтобы Canvas не получал огромные координаты.
  */
 export function projectWorldSegment(R, from, to, view, { clipHorizon = true } = {}) {
   if (!R || !view?.focal) return null;
@@ -200,12 +247,10 @@ export function projectWorldSegment(R, from, to, view, { clipHorizon = true } = 
   });
   const p1 = point(a);
   const p2 = point(b);
-  const onScreen =
-    Math.max(p1.x, p2.x) >= 0 &&
-    Math.min(p1.x, p2.x) <= view.width &&
-    Math.max(p1.y, p2.y) >= 0 &&
-    Math.min(p1.y, p2.y) <= view.height;
-  return { from: p1, to: p2, onScreen };
+  const screen = clipScreenSegment(p1, p2, view);
+  return screen
+    ? { ...screen, onScreen: true }
+    : { from: p1, to: p2, onScreen: false };
 }
 
 /**

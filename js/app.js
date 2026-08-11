@@ -30,9 +30,14 @@ import {
 import {
   createOrientationTracker,
   matrixFromHeadingPitch,
+  screenTopHeading,
   HEADING_SOURCE,
 } from './core/orientation.js';
-import { computeGuidance } from './core/guidance.js';
+import {
+  computeCompassGuidance,
+  computeGuidance,
+  resolveDownCompass,
+} from './core/guidance.js';
 import { createCamera } from './core/camera.js';
 import {
   computeFocalLength,
@@ -41,9 +46,14 @@ import {
   DEFAULT_CAMERA_FOV,
 } from './core/projection.js';
 import { buildSkyDome, projectSkyDome, targetNavigation } from './core/sky-map.js';
+import {
+  createPerseidsBurst,
+  resolvePerseidsBurstTrigger,
+  samplePerseidsBurst,
+} from './core/meteor-animation.js';
 import { createStore, STATES, COMPASS } from './ui/state.js';
 import { createRenderer } from './ui/render.js';
-import { drawSkyScene } from './ui/sky-canvas.js';
+import { drawDownCompass, drawSkyScene } from './ui/sky-canvas.js';
 import { createDebug } from './ui/debug.js';
 
 const debug = createDebug();
@@ -52,6 +62,8 @@ const store = createStore();
 const ui = createRenderer();
 const orientation = createOrientationTracker();
 const camera = createCamera();
+const isPerseids = shower.id === 'perseids';
+const reducedMotionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)') || null;
 
 let cityQuery = '';
 /** Поле зрения камеры: в debug его можно подкрутить под конкретный телефон. */
@@ -63,6 +75,13 @@ let skyDome = null;
 let skyDomeSecond = null;
 let skyDomePositionKey = null;
 let targetAligned = false;
+let downCompassActive = false;
+let compassAligned = false;
+let compassGuidance = null;
+let screenHeading = null;
+let perseidsBurstTrigger = { ready: true, startedAt: null };
+let perseidsBurst = null;
+let lastMeteorBurstSample = { active: false, progress: 0, meteors: [] };
 let fps = 0;
 let framesSinceSample = 0;
 let fpsSampleAt = performance.now();
@@ -172,6 +191,23 @@ function update() {
 
   if (target) ctx.target = target;
 
+  const screenAngle = window.screen?.orientation?.angle || 0;
+  downCompassActive = resolveDownCompass(sensors.pitch, downCompassActive);
+  screenHeading = sensors.matrix
+    ? screenTopHeading(sensors.matrix, screenAngle)
+    : null;
+  if (downCompassActive && target && Number.isFinite(screenHeading)) {
+    compassGuidance = computeCompassGuidance(
+      screenHeading,
+      target.az,
+      compassAligned,
+    );
+    compassAligned = Boolean(compassGuidance?.aligned);
+  } else {
+    compassGuidance = null;
+    compassAligned = false;
+  }
+
   // Наводить есть куда только когда известны и цель, и направление телефона.
   // Проверяем через isFinite: null, undefined и случайный NaN от датчика
   // одинаково означают «данных нет», и рисовать по ним ничего нельзя.
@@ -181,7 +217,7 @@ function update() {
       { heading: sensors.heading, pitch: sensors.pitch },
       targetAligned,
     );
-    targetAligned = target.alt >= 0 && guidance.found;
+    targetAligned = !downCompassActive && target.alt >= 0 && guidance.found;
     ctx.guidance = guidance;
     if (ctx.compassStable !== sensors.stable) {
       store.update({ compassStable: sensors.stable });
@@ -201,6 +237,13 @@ function render() {
   const sensors = effectiveOrientation();
 
   const skyActive = SKY_STATES.includes(state);
+  if (!skyActive) {
+    downCompassActive = false;
+    compassAligned = false;
+    compassGuidance = null;
+    screenHeading = null;
+    lastMeteorBurstSample = { active: false, progress: 0, meteors: [] };
+  }
   if (camera.active && !skyActive) {
     camera.stop();
     ui.setCameraActive(false);
@@ -234,6 +277,38 @@ function render() {
   renderDebug(target, sensors);
 }
 
+/** Запускает и сэмплирует одноразовый бёрст только для видимого радианта Персеид. */
+function updatePerseidsBurst(scene, target) {
+  if (!isPerseids) return null;
+
+  const sampledAt = performance.now();
+  const eligible = Boolean(
+    targetAligned &&
+    !downCompassActive &&
+    target.alt >= 0 &&
+    scene?.target?.onScreen &&
+    !reducedMotionQuery?.matches
+  );
+  const nextTrigger = resolvePerseidsBurstTrigger(perseidsBurstTrigger, {
+    found: Boolean(store.context.guidance?.found),
+    eligible,
+    now: sampledAt,
+  });
+  if (nextTrigger.startedAt !== perseidsBurstTrigger.startedAt) {
+    perseidsBurst = createPerseidsBurst({ startedAt: nextTrigger.startedAt });
+  }
+  perseidsBurstTrigger = nextTrigger;
+
+  lastMeteorBurstSample = eligible && perseidsBurst
+    ? samplePerseidsBurst(perseidsBurst, {
+        now: sampledAt,
+        radiant: scene.target,
+        viewport: { width: scene.width, height: scene.height },
+      })
+    : { active: false, progress: 0, meteors: [] };
+  return lastMeteorBurstSample;
+}
+
 /**
  * Весь небесный купол: астрономия тикает раз в секунду, проекция и Canvas — каждый кадр.
  */
@@ -246,6 +321,41 @@ function renderSky(sensors, target) {
   }
 
   const date = now();
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  if (
+    downCompassActive &&
+    compassGuidance &&
+    Number.isFinite(screenHeading)
+  ) {
+    if (isPerseids) {
+      perseidsBurstTrigger = resolvePerseidsBurstTrigger(perseidsBurstTrigger, {
+        found: Boolean(store.context.guidance?.found),
+        eligible: false,
+        now: performance.now(),
+      });
+      lastMeteorBurstSample = { active: false, progress: 0, meteors: [] };
+    }
+    lastProjection = null;
+    lastScene = null;
+    lastView = null;
+    drawDownCompass(ui.el.skyCanvas, {
+      width,
+      height,
+      heading: screenHeading,
+      targetAz: target.az,
+      aligned: compassAligned,
+      night: ui.isNight(),
+    });
+    ui.renderDownCompass({
+      guidance: compassGuidance,
+      target,
+      stable: sensors.stable,
+    });
+    sampleFps();
+    return;
+  }
+
   const second = Math.floor(date.getTime() / 1000);
   const positionKey = `${position.lat.toFixed(5)}:${position.lon.toFixed(5)}`;
   if (!skyDome || skyDomeSecond !== second || skyDomePositionKey !== positionKey) {
@@ -256,20 +366,20 @@ function renderSky(sensors, target) {
 
   const geometry = camera.geometry();
   lastView = {
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width,
+    height,
     screenAngle: window.screen?.orientation?.angle || 0,
     focal:
       camera.active && geometry
         ? computeFocalLength({
             ...geometry,
-            viewWidth: window.innerWidth,
-            viewHeight: window.innerHeight,
+            viewWidth: width,
+            viewHeight: height,
             fovDeg: cameraFov,
           })
         : computeMapFocalLength({
-            viewWidth: window.innerWidth,
-            viewHeight: window.innerHeight,
+            viewWidth: width,
+            viewHeight: height,
             fovDeg: cameraFov,
           }),
   };
@@ -283,10 +393,13 @@ function renderSky(sensors, target) {
   });
   if (!lastScene) return;
   lastProjection = lastScene.target;
+  const meteorBurst = updatePerseidsBurst(lastScene, target);
 
   drawSkyScene(ui.el.skyCanvas, lastScene, {
     cameraActive: camera.active,
     night: ui.isNight(),
+    meteorBurst,
+    emphasizeHighlight: isPerseids,
   });
   const navigation = targetNavigation({
     scene: lastScene,
@@ -301,6 +414,10 @@ function renderSky(sensors, target) {
     stable: sensors.stable,
   });
 
+  sampleFps();
+}
+
+function sampleFps() {
   framesSinceSample += 1;
   const sampledAt = performance.now();
   if (sampledAt - fpsSampleAt >= 1000) {
@@ -355,6 +472,7 @@ function renderDebug(target, sensors) {
     headingRaw: sensors.headingRaw,
     headingSource: sensors.source,
     yawOffset: sensors.yawOffset,
+    yawOffsetInitialized: sensors.yawOffsetInitialized,
     declination: sensors.declination,
     magneticModel: MODEL_INFO.isExpired(date)
       ? `${MODEL_INFO.name}, срок истёк`
@@ -373,6 +491,13 @@ function renderDebug(target, sensors) {
     markerOnScreen: lastProjection ? lastProjection.onScreen : null,
     visibleConstellations: lastScene?.visibleConstellations ?? null,
     fps,
+    displayMode: downCompassActive ? 'компас' : 'карта',
+    screenHeading,
+    downCompassActive,
+    compassAligned,
+    meteorBurstActive: lastMeteorBurstSample.active,
+    meteorBurstProgress: lastMeteorBurstSample.progress,
+    meteorBurstReady: perseidsBurstTrigger.ready,
     geoPermission: ctx.geoPermission,
     orientationPermission: sensors.permission,
     compass: ctx.compass,

@@ -654,6 +654,19 @@ body.camera-active .ar__scrim {
   opacity: 1;
 }
 
+/* Камера продолжает работать, но нижний режим визуально оставляет только компас. */
+body.down-compass-active .ar__scrim {
+  opacity: 0;
+}
+
+body.down-compass-active .ar__reticle {
+  display: none;
+}
+
+body.down-compass-active .sky-status {
+  bottom: calc(76px + env(safe-area-inset-bottom));
+}
+
 .ar__reticle {
   position: absolute;
   z-index: 3;
@@ -714,6 +727,11 @@ body.camera-active .ar__scrim {
   color: var(--ok);
 }
 
+.ar__marker--found .ar__label {
+  top: auto;
+  bottom: calc(100% - 22px);
+}
+
 .ar__marker--found .ar__ring {
   stroke-width: 3;
 }
@@ -743,6 +761,10 @@ body.camera-active .ar__scrim {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.sky-controls[hidden] {
+  display: none;
 }
 
 .target-card {

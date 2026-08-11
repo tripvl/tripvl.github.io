@@ -24,6 +24,13 @@ const $ = (id) => document.getElementById(id);
 /** Геометрия схемы высоты: центр дуги и радиус в координатах SVG. */
 const ALT_ORIGIN = { x: 20, y: 106, r: 86 };
 
+/** Новая развёрнутая подпись нужна только специальной визуализации Персеид. */
+export function markerLabelForShower(shower) {
+  return shower?.id === 'perseids'
+    ? `Радиант ${shower.nameGenitive}`
+    : shower?.name || '';
+}
+
 export function createRenderer() {
   const el = {
     screens: Array.from(document.querySelectorAll('.screen')),
@@ -42,6 +49,7 @@ export function createRenderer() {
     arMarkerLabel: $('ar-marker-label'),
     arToggle: $('ar-toggle'),
     arNotice: $('ar-notice'),
+    skyControls: document.querySelector('.sky-controls'),
 
     aimArrow: $('aim-arrow'),
     aimPrimary: $('aim-primary'),
@@ -98,7 +106,7 @@ export function createRenderer() {
       el.startTitle.textContent = shower.name;
       el.startButton.textContent = `Открыть карту ${shower.nameGenitive}`;
       el.targetCardTitle.textContent = `Радиант ${shower.nameGenitive} найден`;
-      el.arMarkerLabel.textContent = shower.name;
+      el.arMarkerLabel.textContent = markerLabelForShower(shower);
       document.title = `${shower.name} — где смотреть`;
       const step = el.manualSteps.querySelector('li:nth-child(4)');
       if (step) step.textContent = `Это район радианта ${shower.nameGenitive}.`;
@@ -116,6 +124,8 @@ export function createRenderer() {
 
     /** Стрелка, метка радианта и компактная карточка успеха поверх Canvas. */
     renderSkyGuidance({ navigation, scene, target, aligned, stable }) {
+      document.body.classList.remove('down-compass-active');
+      el.skyControls.hidden = false;
       const markerVisible = Boolean(target.alt >= 0 && scene?.target?.onScreen);
       el.arMarker.hidden = !markerVisible;
       if (markerVisible) {
@@ -153,10 +163,37 @@ export function createRenderer() {
       );
     },
 
+    /** Нижний режим: карта и камера перекрыты непрозрачным Canvas-компасом. */
+    renderDownCompass({ guidance, target, stable }) {
+      document.body.classList.add('down-compass-active');
+      el.skyControls.hidden = true;
+      el.arMarker.hidden = true;
+      el.aimArrow.hidden = true;
+      el.targetCard.hidden = true;
+
+      const status = el.aimPrimary.closest('.sky-status');
+      status.hidden = false;
+      el.aimPrimary.textContent = guidance?.primary || 'Поверни телефон по стрелке';
+      el.aimSecondary.textContent = target.alt < 0
+        ? 'Радиант пока под горизонтом'
+        : guidance?.aligned
+          ? ''
+          : 'Стрелка показывает направление на радиант';
+      el.compassBanner.hidden = stable;
+      el.skyCanvas.setAttribute(
+        'aria-label',
+        guidance?.aligned
+          ? 'Компас: направление на радиант найдено. Поднимите телефон.'
+          : `Компас: поверните телефон ${guidance?.side || 'по стрелке'}.`,
+      );
+    },
+
     setSkyActive(active) {
       el.arLayer.hidden = !active;
       document.body.classList.toggle('sky-active', active);
       if (!active) {
+        document.body.classList.remove('down-compass-active');
+        el.skyControls.hidden = false;
         el.arMarker.hidden = true;
         el.aimArrow.hidden = true;
         el.targetCard.hidden = true;
