@@ -10,8 +10,8 @@
   "display": "standalone",
   "display_override": ["standalone", "fullscreen"],
   "orientation": "portrait",
-  "background_color": "#07070a",
-  "theme_color": "#07070a",
+  "background_color": "#09002d",
+  "theme_color": "#09002d",
   "categories": ["education", "utilities"],
   "icons": [
     {

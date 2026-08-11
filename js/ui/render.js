@@ -282,7 +282,7 @@ export function createRenderer() {
       el.nightToggle.setAttribute('aria-pressed', String(night));
       el.nightToggle.textContent = night ? 'Обычный режим' : 'Ночной режим';
       const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.setAttribute('content', night ? '#060102' : '#07070a');
+      if (meta) meta.setAttribute('content', night ? '#060102' : '#09002d');
       try {
         localStorage.setItem(THEME_KEY, night ? 'night' : 'dark');
       } catch {

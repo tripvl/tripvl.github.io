@@ -12,7 +12,7 @@
       content="Показывает, куда повернуться, чтобы найти радиант метеорного потока Персеиды. Работает в браузере, без установки."
     />
 
-    <meta name="theme-color" content="#07070a" />
+    <meta name="theme-color" content="#09002d" />
     <meta name="color-scheme" content="dark" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
@@ -27,6 +27,24 @@
 
   <body>
     <a class="skip-link" href="#main">К основному содержанию</a>
+
+    <!-- Фирменный знак: один SVG-символ для шапки и стартового экрана. -->
+    <svg class="svg-defs" aria-hidden="true">
+      <symbol id="trip-mark" viewBox="0 0 100 100">
+        <path
+          d="M35 75 A31 31 0 1 1 65 75"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="7"
+          stroke-linecap="butt"
+        />
+        <path d="M50 5 54 20H46Z" fill="currentColor" />
+        <path d="m95 49-17 6V43Z" fill="currentColor" />
+        <path d="M5 52 22 45v12Z" fill="currentColor" />
+        <path d="m31 57 35-27-13 40-5-15Z" fill="currentColor" />
+        <circle cx="50" cy="87" r="4.8" fill="currentColor" />
+      </symbol>
+    </svg>
 
     <!--
       AR-слой: кадр с задней камеры и метка радианта поверх него.
@@ -57,7 +75,12 @@
     </div>
 
     <header class="topbar">
-      <span class="brand" id="brand">Персеиды</span>
+      <span class="brand-lockup">
+        <svg class="brand-lockup__mark" viewBox="0 0 100 100" aria-hidden="true">
+          <use href="#trip-mark"></use>
+        </svg>
+        <span class="brand" id="brand">Персеиды</span>
+      </span>
       <button
         type="button"
         class="ghost-button"
@@ -70,7 +93,10 @@
 
     <main id="main">
       <!-- 1. Старт -->
-      <section class="screen screen--center" id="screen-start">
+      <section class="screen screen--center screen--start" id="screen-start">
+        <svg class="hero-mark" viewBox="0 0 100 100" aria-hidden="true">
+          <use href="#trip-mark"></use>
+        </svg>
         <h1 class="hero-title" id="start-title">Персеиды</h1>
         <p class="hero-sub">
           Покажем, в какую сторону повернуться, чтобы найти радиант потока.
@@ -89,6 +115,14 @@
             Персеид. Сами метеоры могут появляться в разных частях неба.
           </p>
         </details>
+        <p class="start-credit">
+          Сделано каналом
+          <a
+            href="https://t.me/trip_vl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >@trip_vl</a>
+        </p>
       </section>
 
       <!-- 2. Запрос разрешений -->
@@ -125,10 +159,19 @@
 
         <div class="aim-arrow" id="aim-arrow">
           <svg viewBox="0 0 100 100" aria-hidden="true">
+            <circle
+              class="aim-arrow__orbit"
+              cx="50"
+              cy="50"
+              r="39"
+              fill="none"
+            />
             <path
-              d="M50 4 L78 62 L50 48 L22 62 Z"
+              class="aim-arrow__needle"
+              d="M50 3 L72 67 L50 54 L28 67 Z"
               fill="currentColor"
             />
+            <circle class="aim-arrow__dot" cx="50" cy="88" r="4" />
           </svg>
         </div>
 

@@ -8,13 +8,15 @@
  * При изменении файлов поднимите CACHE_VERSION — старый кеш будет удалён.
  */
 
-const CACHE_VERSION = 'perseids-v2';
+const CACHE_VERSION = 'perseids-v3';
 
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './css/styles.css',
+  './assets/fonts/roboto-condensed-800-italic-cyrillic.woff2',
+  './assets/fonts/roboto-condensed-800-italic-latin.woff2',
   './js/app.js',
   './js/config/showers.js',
   './js/config/cities.js',
