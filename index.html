@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Персеиды — где смотреть</title>
+    <meta
+      name="description"
+      content="Показывает, куда повернуться, чтобы найти радиант метеорного потока Персеиды. Работает в браузере, без установки."
+    />
+
+    <meta name="theme-color" content="#07070a" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Персеиды" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">К основному содержанию</a>
+
+    <header class="topbar">
+      <span class="brand" id="brand">Персеиды</span>
+      <button
+        type="button"
+        class="ghost-button"
+        id="night-toggle"
+        aria-pressed="false"
+      >
+        Ночной режим
+      </button>
+    </header>
+
+    <main id="main">
+      <!-- 1. Старт -->
+      <section class="screen screen--center" id="screen-start">
+        <h1 class="hero-title" id="start-title">Персеиды</h1>
+        <p class="hero-sub">
+          Покажем, в какую сторону повернуться, чтобы найти радиант потока.
+        </p>
+        <button type="button" class="primary-button" id="start-button">
+          Найти Персеиды
+        </button>
+        <p class="hint" id="start-hint">
+          Понадобится местоположение и датчики телефона. Если их нет — покажем,
+          как найти радиант по обычному компасу.
+        </p>
+        <details class="explainer">
+          <summary>Что такое радиант?</summary>
+          <p>
+            Радиант — область неба, из которой визуально расходятся траектории
+            Персеид. Сами метеоры могут появляться в разных частях неба.
+          </p>
+        </details>
+      </section>
+
+      <!-- 2. Запрос разрешений -->
+      <section class="screen screen--center" id="screen-permissions" hidden>
+        <div class="spinner" aria-hidden="true"></div>
+        <h2 class="step-title">Спрашиваем разрешения</h2>
+        <p class="hero-sub" id="permissions-text">
+          Разрешите доступ к датчикам движения и местоположению.
+        </p>
+        <button type="button" class="ghost-button" id="permissions-skip">
+          Пропустить и выбрать город
+        </button>
+      </section>
+
+      <!-- 3. Определение местоположения -->
+      <section class="screen screen--center" id="screen-locating" hidden>
+        <div class="spinner" aria-hidden="true"></div>
+        <h2 class="step-title">Определяем, где вы</h2>
+        <p class="hero-sub">Это займёт несколько секунд.</p>
+        <button type="button" class="ghost-button" id="locating-skip">
+          Выбрать город вручную
+        </button>
+      </section>
+
+      <!-- 4. Наведение -->
+      <section class="screen screen--aim" id="screen-aiming" hidden>
+        <p class="banner" id="compass-banner" hidden>
+          Компас может быть неточным. Отойди от автомобиля, металлических
+          конструкций и крупной электроники.
+          <button type="button" class="banner-action" id="banner-manual">
+            Показать инструкцию по компасу
+          </button>
+        </p>
+
+        <div class="aim-arrow" id="aim-arrow">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <path
+              d="M50 4 L78 62 L50 48 L22 62 Z"
+              fill="currentColor"
+            />
+          </svg>
+        </div>
+
+        <p class="aim-primary" id="aim-primary">Повернись</p>
+        <p class="aim-secondary" id="aim-secondary"></p>
+
+        <div class="aim-meta">
+          <span id="aim-distance"></span>
+          <span class="aim-meta__dim" id="aim-numbers"></span>
+        </div>
+      </section>
+
+      <!-- 5. Радиант найден -->
+      <section class="screen screen--found" id="screen-found" hidden>
+        <p class="found-mark" aria-hidden="true">✦</p>
+        <h2 class="found-title" id="found-title">Радиант Персеид здесь</h2>
+
+        <p class="found-note">
+          Метеоры могут появляться по всему небу. Для наблюдения убери телефон
+          и смотри примерно на 40–60° в сторону от этой точки — там следы
+          метеоров обычно выглядят длиннее.
+        </p>
+
+        <ul class="tips">
+          <li>Не смотри всё время прямо на радиант.</li>
+          <li>Персеиды могут появляться в любой части неба.</li>
+          <li>Лучше охватывать взглядом большую область неба.</li>
+          <li>
+            Убери телефон на 20–30 минут — глаза привыкнут к темноте и увидят
+            больше слабых метеоров.
+          </li>
+        </ul>
+
+        <div class="found-actions">
+          <button type="button" class="ghost-button" id="found-again">
+            Навести снова
+          </button>
+        </div>
+        <p class="aim-meta__dim" id="found-numbers"></p>
+      </section>
+
+      <!-- 6 и 7. Ручная инструкция: есть координаты, нет компаса -->
+      <section class="screen" id="screen-manual" hidden>
+        <h2 class="step-title" id="manual-title">Открой приложение «Компас»</h2>
+        <p class="hero-sub" id="manual-place"></p>
+
+        <p class="manual-direction" id="manual-direction">—</p>
+        <p class="manual-altitude" id="manual-altitude">—</p>
+
+        <figure class="altitude-figure">
+          <svg viewBox="0 0 200 116" id="altitude-svg" role="img"
+               aria-labelledby="altitude-caption">
+            <!-- дуга от горизонта до зенита -->
+            <path
+              d="M20 106 A 86 86 0 0 1 106 20"
+              class="alt-arc"
+              fill="none"
+            />
+            <line x1="20" y1="106" x2="192" y2="106" class="alt-ground" />
+            <line x1="20" y1="106" x2="106" y2="106" class="alt-ray" id="alt-ray-0" />
+            <line x1="20" y1="106" x2="20" y2="20" class="alt-ray" id="alt-ray-90" />
+            <line x1="20" y1="106" x2="81" y2="45" class="alt-ray" id="alt-ray-45" />
+            <line x1="20" y1="106" x2="106" y2="106" class="alt-target" id="alt-target" />
+            <circle cx="106" cy="106" r="5" class="alt-dot" id="alt-dot" />
+            <text x="112" y="110" class="alt-label">0° — горизонт</text>
+            <text x="86" y="41" class="alt-label">45°</text>
+            <text x="26" y="16" class="alt-label">90° — над головой</text>
+          </svg>
+          <figcaption id="altitude-caption" class="hint">
+            45° — примерно середина между горизонтом и точкой прямо над головой.
+          </figcaption>
+        </figure>
+
+        <ol class="steps" id="manual-steps">
+          <li>Открой приложение «Компас».</li>
+          <li>Повернись в указанном направлении.</li>
+          <li>Посмотри на указанную высоту над горизонтом.</li>
+          <li>Это район радианта Персеид.</li>
+          <li>
+            Для наблюдения смести взгляд примерно на 40–60° в сторону и
+            охватывай взглядом как можно большую часть неба.
+          </li>
+        </ol>
+
+        <p class="found-note">
+          Метеоры могут появляться по всему небу. Смотреть всё время в одну
+          точку не нужно.
+        </p>
+        <p class="hint hint--wide" id="manual-observing"></p>
+
+        <div class="manual-actions">
+          <button type="button" class="ghost-button" id="manual-change-city">
+            Сменить город
+          </button>
+          <button type="button" class="ghost-button" id="manual-retry-sensors">
+            Попробовать датчики ещё раз
+          </button>
+        </div>
+
+        <details class="explainer">
+          <summary>Что такое радиант?</summary>
+          <p>
+            Радиант — область неба, из которой визуально расходятся траектории
+            Персеид. Сами метеоры могут появляться в разных частях неба.
+          </p>
+        </details>
+      </section>
+
+      <!-- 8 и 9. Нет местоположения / нет датчиков -->
+      <section class="screen screen--center" id="screen-no-location" hidden>
+        <h2 class="step-title" id="no-location-title">
+          Не получилось определить ваше местоположение
+        </h2>
+        <p class="hero-sub" id="no-location-text">
+          Без координат положение радианта не посчитать. Можно попробовать ещё
+          раз или просто выбрать город.
+        </p>
+        <div class="stacked-actions">
+          <button type="button" class="primary-button" id="retry-location">
+            Попробовать ещё раз
+          </button>
+          <button type="button" class="ghost-button" id="choose-city">
+            Выбрать город
+          </button>
+        </div>
+      </section>
+
+      <!-- Выбор города -->
+      <section class="screen" id="screen-cities" hidden>
+        <h2 class="step-title">Выберите город</h2>
+        <p class="hint" id="cities-hint"></p>
+        <input
+          type="search"
+          id="city-search"
+          class="search-input"
+          placeholder="Начните вводить название"
+          autocomplete="off"
+          enterkeyhint="search"
+          aria-label="Поиск города"
+        />
+        <ul class="city-list" id="city-list"></ul>
+        <p class="hint" id="city-empty" hidden>
+          Такого города нет в списке. Попробуйте ближайший крупный — на
+          несколько десятков километров направление почти не меняется.
+        </p>
+      </section>
+    </main>
+
+    <!-- debug-панель, включается через ?debug=1 -->
+    <aside class="debug" id="debug" hidden>
+      <div class="debug__head">
+        <strong>debug</strong>
+        <button type="button" class="debug__toggle" id="debug-collapse">
+          свернуть
+        </button>
+      </div>
+      <pre class="debug__values" id="debug-values"></pre>
+      <div class="debug__form" id="debug-form">
+        <label>
+          широта
+          <input type="number" step="0.0001" id="dbg-lat" placeholder="43.1198" />
+        </label>
+        <label>
+          долгота
+          <input type="number" step="0.0001" id="dbg-lon" placeholder="131.8869" />
+        </label>
+        <label>
+          время (локальное)
+          <input type="datetime-local" id="dbg-time" />
+        </label>
+        <label>
+          heading
+          <input type="number" step="1" id="dbg-heading" placeholder="0–360" />
+        </label>
+        <label>
+          pitch
+          <input type="number" step="1" id="dbg-pitch" placeholder="−90…90" />
+        </label>
+        <div class="debug__buttons">
+          <button type="button" id="dbg-apply">применить</button>
+          <button type="button" id="dbg-clear">сбросить</button>
+        </div>
+        <p class="debug__hint">
+          На компьютере: тяните мышью по экрану или используйте стрелки —
+          heading и pitch меняются, как будто вы поворачиваете телефон.
+        </p>
+      </div>
+    </aside>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

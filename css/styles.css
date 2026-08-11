@@ -1,0 +1,690 @@
+/*
+ * Оформление рассчитано на использование ночью, на улице, с рук.
+ *
+ * Правила, которым подчинено всё остальное:
+ *   - фон почти чёрный, чистого белого текста нет нигде: белое пятно
+ *     на весь экран сбивает адаптацию глаз к темноте на десятки минут;
+ *   - крупный шрифт и большие цели нажатия — смотреть придётся в темноте;
+ *   - в ночном режиме остаётся только красный: к нему глаз в темноте
+ *     наименее чувствителен, и адаптация почти не теряется;
+ *   - на основном экране минимум текста, всё внимание на стрелку.
+ */
+
+:root {
+  --bg: #07070a;
+  --bg-raised: #101017;
+  --text: #c8c5d0;
+  --text-dim: #7d7a89;
+  --text-bright: #e6e3ec;
+  --accent: #c0334c;
+  --accent-soft: #7b2033;
+  --accent-text: #e8657f;
+  --ok: #4f9d69;
+  --warn: #b2762c;
+  --border: #23222c;
+  --focus: #6f6b7d;
+
+  --arrow-size: min(58vw, 260px);
+  --radius: 14px;
+
+  color-scheme: dark;
+}
+
+/*
+ * Ночной режим. Всё в красном, яркость заметно ниже обычной темы.
+ */
+:root[data-theme='night'] {
+  --bg: #060102;
+  --bg-raised: #150406;
+  --text: #b84038;
+  --text-dim: #6e2420;
+  --text-bright: #d75046;
+  --accent: #8f1f1a;
+  --accent-soft: #4a0d0d;
+  --accent-text: #c93a30;
+  --ok: #a03028;
+  --warn: #a83a25;
+  --border: #340c0c;
+  --focus: #7a2a22;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  font-size: 17px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  /* Стрелку тянут пальцем по всему экрану — случайное выделение мешает. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  padding:
+    env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  transition: background-color 0.4s ease;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: 12px;
+  top: 12px;
+  z-index: 10;
+  background: var(--bg-raised);
+  color: var(--text-bright);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+/* ---------- Верхняя панель ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  min-height: 48px;
+}
+
+.brand {
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ---------- Экраны ---------- */
+
+main {
+  padding: 0 20px 32px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.screen[hidden] {
+  display: none;
+}
+
+.screen {
+  animation: fade-in 0.25s ease;
+}
+
+.screen--center {
+  min-height: calc(100svh - 140px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 18px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.hero-title {
+  font-size: clamp(38px, 12vw, 56px);
+  line-height: 1.05;
+  margin: 0;
+  color: var(--text-bright);
+  letter-spacing: -0.02em;
+}
+
+.hero-sub {
+  margin: 0;
+  color: var(--text-dim);
+  max-width: 30ch;
+  font-size: 17px;
+}
+
+.step-title {
+  font-size: clamp(24px, 7vw, 32px);
+  margin: 0;
+  color: var(--text-bright);
+  line-height: 1.15;
+}
+
+.hint {
+  font-size: 14px;
+  color: var(--text-dim);
+  max-width: 34ch;
+  margin: 0;
+}
+
+.hint--wide {
+  max-width: none;
+  margin-top: 12px;
+}
+
+/* ---------- Кнопки ---------- */
+
+.primary-button {
+  font: inherit;
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--text-bright);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  padding: 20px 34px;
+  min-height: 64px;
+  width: 100%;
+  max-width: 340px;
+  cursor: pointer;
+}
+
+.primary-button:active {
+  background: var(--accent-soft);
+}
+
+.ghost-button {
+  font: inherit;
+  font-size: 15px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.ghost-button:active {
+  border-color: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.ghost-button[aria-pressed='true'] {
+  color: var(--accent-text);
+  border-color: var(--accent-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.stacked-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+}
+
+/* ---------- Индикатор ожидания ---------- */
+
+.spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent-text);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Экран наведения ---------- */
+
+.screen--aim {
+  min-height: calc(100svh - 120px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.aim-arrow {
+  width: var(--arrow-size);
+  height: var(--arrow-size);
+  color: var(--accent-text);
+  /* Плавность стрелки: датчик тикает рывками, глаз этого видеть не должен. */
+  transition: transform 0.14s linear;
+  will-change: transform;
+}
+
+.aim-arrow svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.aim-arrow--found {
+  color: var(--ok);
+}
+
+.aim-primary {
+  font-size: clamp(26px, 8vw, 36px);
+  font-weight: 600;
+  color: var(--text-bright);
+  margin: 12px 0 0;
+  line-height: 1.15;
+  min-height: 1.2em;
+}
+
+.aim-secondary {
+  font-size: 19px;
+  color: var(--text-dim);
+  margin: 0;
+  min-height: 1.4em;
+}
+
+.aim-meta {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.aim-meta__dim {
+  font-size: 13px;
+  color: var(--text-dim);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+.banner {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--text-dim);
+  text-align: left;
+  margin: 0 0 4px;
+}
+
+.banner[hidden] {
+  display: none;
+}
+
+.banner-action {
+  display: block;
+  margin-top: 8px;
+  font: inherit;
+  color: var(--accent-text);
+  background: none;
+  border: none;
+  padding: 4px 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---------- Радиант найден ---------- */
+
+.screen--found {
+  min-height: calc(100svh - 120px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.found-mark {
+  font-size: 46px;
+  color: var(--ok);
+  margin: 0;
+  line-height: 1;
+}
+
+.found-title {
+  font-size: clamp(28px, 9vw, 38px);
+  margin: 0;
+  color: var(--text-bright);
+  line-height: 1.1;
+}
+
+.found-note {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin: 0;
+  font-size: 16px;
+  text-align: left;
+  color: var(--text);
+}
+
+.tips {
+  margin: 0;
+  padding-left: 20px;
+  text-align: left;
+  color: var(--text-dim);
+  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.found-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+/* ---------- Ручная инструкция ---------- */
+
+.manual-direction {
+  font-size: clamp(24px, 7.5vw, 32px);
+  font-weight: 600;
+  color: var(--text-bright);
+  margin: 18px 0 4px;
+  line-height: 1.15;
+}
+
+.manual-altitude {
+  font-size: 19px;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.altitude-figure {
+  margin: 8px 0 20px;
+}
+
+.altitude-figure svg {
+  width: 100%;
+  height: auto;
+  max-width: 340px;
+  display: block;
+}
+
+.alt-arc {
+  stroke: var(--border);
+  stroke-width: 2;
+  stroke-dasharray: 3 5;
+}
+
+.alt-ground {
+  stroke: var(--border);
+  stroke-width: 2;
+}
+
+.alt-ray {
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+
+.alt-target {
+  stroke: var(--accent-text);
+  stroke-width: 3;
+}
+
+.alt-dot {
+  fill: var(--accent-text);
+}
+
+.alt-label {
+  fill: var(--text-dim);
+  font-size: 9px;
+  font-family: inherit;
+}
+
+.steps {
+  padding-left: 22px;
+  margin: 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 16px;
+}
+
+.manual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+/* ---------- Выбор города ---------- */
+
+.search-input {
+  font: inherit;
+  font-size: 17px;
+  width: 100%;
+  padding: 14px 16px;
+  margin: 14px 0;
+  min-height: 52px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-bright);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.search-input::placeholder {
+  color: var(--text-dim);
+}
+
+.city-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.city-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.city-button {
+  font: inherit;
+  font-size: 18px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 16px 4px;
+  min-height: 56px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.city-button:active {
+  color: var(--accent-text);
+}
+
+.city-button__tz {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* ---------- Раскрывающееся пояснение ---------- */
+
+.explainer {
+  margin-top: 26px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  width: 100%;
+  max-width: 40ch;
+  text-align: left;
+}
+
+.explainer summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 15px;
+  padding: 8px 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.explainer p {
+  font-size: 15px;
+  color: var(--text-dim);
+  margin: 4px 0 8px;
+}
+
+/* ---------- debug ---------- */
+
+.debug {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  background: rgba(4, 4, 8, 0.94);
+  border-top: 1px solid var(--border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  max-height: 62svh;
+  overflow-y: auto;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.debug[hidden] {
+  display: none;
+}
+
+.debug__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  color: var(--accent-text);
+}
+
+.debug__toggle {
+  font: inherit;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.debug__values {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.debug--collapsed .debug__values,
+.debug--collapsed .debug__form {
+  display: none;
+}
+
+.debug__form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.debug__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.debug__form input {
+  font: inherit;
+  background: #0d0d14;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px;
+  min-height: 32px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.debug__buttons {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+
+.debug__buttons button {
+  font: inherit;
+  flex: 1;
+  background: var(--accent-soft);
+  color: var(--text-bright);
+  border: none;
+  border-radius: 6px;
+  padding: 8px;
+  min-height: 34px;
+}
+
+.debug__hint {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  opacity: 0.7;
+}
+
+/*
+ * Панель отладки занимает нижнюю часть экрана, поэтому содержимое
+ * поджимается вверх — иначе проверять нечего, всё под панелью.
+ */
+body.has-debug main {
+  padding-bottom: 64svh;
+}
+
+body.has-debug .screen--center,
+body.has-debug .screen--aim,
+body.has-debug .screen--found {
+  min-height: 36svh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* На широком экране приложение остаётся узкой колонкой: оно про телефон. */
+@media (min-width: 700px) {
+  main {
+    padding-top: 12px;
+  }
+}
